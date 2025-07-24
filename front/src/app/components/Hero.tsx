@@ -1,91 +1,162 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
 
-const Hero = () => {
+const Header = () => {
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-football-gradient football-field">
-      {/* Background Animation */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-white/20 rounded-full animate-bounce-custom"></div>
-        <div className="absolute top-1/3 right-1/3 w-3 h-3 bg-white/10 rounded-full animate-bounce-custom" style={{animationDelay: '0.5s'}}></div>
-        <div className="absolute bottom-1/4 left-1/3 w-2 h-2 bg-white/15 rounded-full animate-bounce-custom" style={{animationDelay: '1s'}}></div>
-      </div>
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+        isScrolled
+          ? "bg-white/95 backdrop-blur-xl shadow-lg border-b border-gray-100"
+          : "bg-transparent"
+      }`}
+    >
+      <nav className="container mx-auto px-6 py-4">
+        <div className="flex items-center justify-between">
+          {/* Logo avec animation */}
+          <Link href="/" className="flex items-center space-x-3 group">
+            <div className="relative">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+                isScrolled ? "bg-green-600" : "bg-white"
+              } shadow-lg group-hover:scale-110`}>
+                <span className={`text-2xl font-bold transition-colors ${
+                  isScrolled ? "text-white" : "text-green-600"
+                }`}>⚽</span>
+              </div>
+              <div className="absolute -inset-1 bg-gradient-to-r from-green-400 to-blue-500 rounded-2xl opacity-0 group-hover:opacity-20 transition-opacity blur"></div>
+            </div>
+            <div>
+              <span
+                className={`text-2xl font-black transition-colors ${
+                  isScrolled ? "text-gray-900" : "text-white"
+                }`}
+              >
+                MatchFlow
+              </span>
+              <div className={`text-xs font-medium ${
+                isScrolled ? "text-green-600" : "text-green-200"
+              }`}>
+                Coach Edition
+              </div>
+            </div>
+          </Link>
 
-      <div className="container mx-auto px-8 lg:px-12 text-center relative z-10">
-        <div className="animate-slide-up max-w-5xl mx-auto">
-          {/* Badge */}
-          <div className="inline-flex items-center bg-white/10 backdrop-blur-sm rounded-full px-6 py-3 mb-12">
-            <span className="text-sm font-medium text-white/90">
-              🏆 #1 App de gestion de matchs de football
-            </span>
+          {/* Navigation Desktop */}
+          <div className="hidden lg:flex items-center space-x-8">
+            {[
+              { href: "#features", label: "Fonctionnalités", icon: "⚡" },
+              { href: "#demo", label: "Démo Live", icon: "🎮" },
+              { href: "#pricing", label: "Tarifs", icon: "💎" },
+              { href: "#contact", label: "Contact", icon: "📞" }
+            ].map((item) => (
+              <a
+                key={item.label}
+                href={item.href}
+                className={`group flex items-center space-x-2 font-semibold text-sm transition-all hover:scale-105 ${
+                  isScrolled 
+                    ? "text-gray-700 hover:text-green-600" 
+                    : "text-white/90 hover:text-white"
+                }`}
+              >
+                <span className="text-lg group-hover:animate-bounce">{item.icon}</span>
+                <span>{item.label}</span>
+              </a>
+            ))}
           </div>
-
-          {/* Titre principal */}
-          <h1 className="text-5xl md:text-7xl font-black text-white mb-8 leading-tight">
-            <span className="block">Gérez vos</span>
-            <span className="block text-yellow-400">MATCHS</span>
-            <span className="block">comme un PRO</span>
-          </h1>
-
-          {/* Sous-titre */}
-          <p className="text-xl md:text-2xl text-white/90 max-w-4xl mx-auto mb-16 leading-relaxed px-4">
-            Créez vos feuilles de match, suivez les statistiques en temps réel et 
-            gérez votre équipe depuis votre mobile. <strong>Tout-en-un, ultra-simple.</strong>
-          </p>
 
           {/* Boutons d'action */}
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-20">
-            <button 
-              onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
-              className="btn-primary text-lg px-12 py-4 animate-fade-scale"
+          <div className="hidden lg:flex items-center space-x-4">
+            <Link 
+              href="/login"
+              className={`font-semibold px-6 py-3 rounded-xl transition-all hover:scale-105 ${
+                isScrolled
+                  ? "text-gray-700 hover:text-green-600 hover:bg-green-50"
+                  : "text-white/90 hover:text-white hover:bg-white/10"
+              }`}
             >
-              🚀 Nous contacter
-            </button>
-            <button 
-              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-              className="btn-secondary text-lg px-12 py-4 animate-fade-scale" style={{animationDelay: '0.2s'}}
+              <span className="mr-2">👤</span>
+              Connexion
+            </Link>
+            <Link 
+              href="/register" 
+              className="bg-gradient-to-r from-green-600 to-green-700 text-white font-bold px-8 py-3 rounded-xl hover:from-green-700 hover:to-green-800 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl"
             >
-              📱 Découvrir les fonctionnalités
-            </button>
+              <span className="mr-2">🚀</span>
+              Essai Gratuit
+            </Link>
           </div>
 
-          {/* Stats impressionnantes */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 max-w-5xl mx-auto">
-            <div className="animate-fade-scale" style={{animationDelay: '0.4s'}}>
-              <div className="text-3xl md:text-4xl font-bold text-yellow-400 mb-3">10K+</div>
-              <div className="text-white/80 text-sm md:text-base">Matchs gérés</div>
-            </div>
-            <div className="animate-fade-scale" style={{animationDelay: '0.6s'}}>
-              <div className="text-3xl md:text-4xl font-bold text-yellow-400 mb-3">500+</div>
-              <div className="text-white/80 text-sm md:text-base">Équipes actives</div>
-            </div>
-            <div className="animate-fade-scale" style={{animationDelay: '0.8s'}}>
-              <div className="text-3xl md:text-4xl font-bold text-yellow-400 mb-3">98%</div>
-              <div className="text-white/80 text-sm md:text-base">Satisfaction</div>
-            </div>
-            <div className="animate-fade-scale" style={{animationDelay: '1s'}}>
-              <div className="text-3xl md:text-4xl font-bold text-yellow-400 mb-3">24/7</div>
-              <div className="text-white/80 text-sm md:text-base">Support</div>
+          {/* Mobile menu button */}
+          <button
+            className={`lg:hidden p-3 rounded-xl transition-colors ${
+              isScrolled 
+                ? "text-gray-700 hover:bg-gray-100" 
+                : "text-white hover:bg-white/10"
+            }`}
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {isMobileMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+        </div>
+
+        {/* Mobile Menu */}
+        {isMobileMenuOpen && (
+          <div className="lg:hidden absolute top-full left-0 right-0 mt-2 mx-6 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="p-6 space-y-4">
+              {[
+                { href: "#features", label: "Fonctionnalités", icon: "⚡" },
+                { href: "#demo", label: "Démo Live", icon: "🎮" },
+                { href: "#pricing", label: "Tarifs", icon: "💎" },
+                { href: "#contact", label: "Contact", icon: "📞" }
+              ].map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="flex items-center space-x-3 text-gray-700 hover:text-green-600 font-semibold py-3 px-4 rounded-xl hover:bg-green-50 transition-all"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span className="text-lg">{item.icon}</span>
+                  <span>{item.label}</span>
+                </a>
+              ))}
+              <hr className="border-gray-200 my-4" />
+              <Link
+                href="/login"
+                className="flex items-center space-x-3 text-gray-700 hover:text-green-600 font-semibold py-3 px-4 rounded-xl hover:bg-green-50 transition-all"
+              >
+                <span className="text-lg">👤</span>
+                <span>Connexion</span>
+              </Link>
+              <Link
+                href="/register"
+                className="flex items-center justify-center space-x-2 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-4 px-6 rounded-xl hover:from-green-700 hover:to-green-800 transition-all"
+              >
+                <span>🚀</span>
+                <span>Essai Gratuit</span>
+              </Link>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Scroll indicator */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-        <div className="w-6 h-10 border-2 border-white/50 rounded-full flex justify-center">
-          <div className="w-1 h-3 bg-white/70 rounded-full mt-2 animate-pulse"></div>
-        </div>
-      </div>
-
-      {/* Forme décorative */}
-      <div className="absolute bottom-0 left-0 right-0">
-        <svg viewBox="0 0 1200 120" className="w-full h-auto">
-          <path d="M0,120 C400,60 800,180 1200,120 L1200,120 L0,120 Z" fill="white" />
-        </svg>
-      </div>
-    </section>
+        )}
+      </nav>
+    </header>
   );
 };
 
-export default Hero;
+export default Header;
