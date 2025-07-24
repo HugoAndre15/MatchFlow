@@ -1,5 +1,7 @@
 // front/src/services/api.ts
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = 'http://localhost:3001/api';
+console.log('API_BASE_URL:', API_BASE_URL); // Ajoutez cette ligne temporaire
+
 
 interface ApiResponse<T> {
   data?: T;
