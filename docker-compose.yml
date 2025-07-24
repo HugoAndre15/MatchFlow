@@ -19,10 +19,15 @@ services:
     ports:
       - "3001:3001"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/matchflow
-    command: npm run start:prod
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - PORT=3001
+    volumes:
+      # Monter les migrations pour qu'elles soient persistantes
+      - ./back/prisma/migrations:/app/prisma/migrations
 
   db:
     image: postgres:15-alpine
@@ -36,6 +41,11 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   db_data:

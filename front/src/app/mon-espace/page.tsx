@@ -1,8 +1,9 @@
+// front/src/app/mon-espace/page.tsx
 import React from "react";
-import Dashboard from "./components/Dashboard";
+import DashboardProtected from "./components/DashboardProtected";
 
 const MonEspace = () => {
-  return <Dashboard />;
+  return <DashboardProtected />;
 };
 
 export default MonEspace;
