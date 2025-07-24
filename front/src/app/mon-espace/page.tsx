@@ -1,9 +1,14 @@
 // front/src/app/mon-espace/page.tsx
 import React from "react";
-import DashboardProtected from "./components/DashboardProtected";
+import DashboardMain from "./components/DashboardMain";
 
-const MonEspace = () => {
-  return <DashboardProtected />;
+export const metadata = {
+  title: "Mon Espace - MatchFlow",
+  description: "Gérez votre équipe, vos joueurs et vos matchs en temps réel avec MatchFlow",
 };
 
-export default MonEspace;
+const MonEspacePage = () => {
+  return <DashboardMain />;
+};
+
+export default MonEspacePage;
