@@ -1,8 +1,6 @@
-// front/src/app/layout.tsx
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -10,9 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "MatchFlow - Gérez vos matchs de football",
-  description: "Application de gestion de matchs de football en temps réel. Feuilles de match, statistiques, et suivi en direct.",
-  keywords: "football, match, gestion, sport, équipe, statistiques",
+  title: "MatchFlow",
+  description: "Application basique Next.js + Nest.js",
 };
 
 export default function RootLayout({
@@ -21,11 +18,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className="scroll-smooth">
+    <html lang="fr">
       <body className={`${inter.variable} font-sans antialiased`}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        {children}
       </body>
     </html>
   );
