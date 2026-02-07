@@ -9,4 +9,8 @@ export class CreateTeamDto {
     @IsString()
     @IsNotEmpty()
     category: string;
+
+    @IsString()
+    @IsNotEmpty()
+    club_id: string;
 }

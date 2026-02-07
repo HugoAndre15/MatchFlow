@@ -104,11 +104,14 @@ model Team {
     id         String     @id @default(uuid())
     name       String
     category   String
+    club_id    String
     created_at DateTime   @default(now())
     updated_at DateTime   @updatedAt
     players    Player[]
     matches    Match[]
     teamUsers  TeamUser[]
+
+    club Club @relation(fields: [club_id], references: [id], onDelete: Cascade)
 }
 
 //Modèle User
@@ -122,8 +125,8 @@ model User {
     updated_at    DateTime @updatedAt
 
     player    Player?
-    clubUsers ClubUser[]
     teamUsers TeamUser[]
+    clubUsers ClubUser[]
 }
 
 model Club {
@@ -132,6 +135,7 @@ model Club {
     created_at DateTime   @default(now())
     updated_at DateTime   @updatedAt
     clubUsers  ClubUser[]
+    teams      Team[]
 }
 
 model Match {
