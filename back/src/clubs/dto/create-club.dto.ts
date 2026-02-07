@@ -1,12 +1,8 @@
-import { IsString, IsNotEmpty, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength } from 'class-validator';
 
 export class CreateClubDto {
     @IsString()
     @IsNotEmpty()
-    @IsUUID()
-    id: string;
-
-    @IsString()
-    @IsNotEmpty()
+    @MinLength(3)
     name: string;
 }

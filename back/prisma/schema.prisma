@@ -76,7 +76,7 @@ enum club_role {
 enum team_role {
     COACH
     ASSISTANT_COACH
-    PLAYER
+    //PLAYER  pour la V1, mais à terme on pourrait vouloir différencier les joueurs des membres du staff
 }
 
 //Modèle Player
