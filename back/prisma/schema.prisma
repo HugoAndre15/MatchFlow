@@ -79,6 +79,11 @@ enum team_role {
     //PLAYER  pour la V1, mais à terme on pourrait vouloir différencier les joueurs des membres du staff
 }
 
+enum match_player_status {
+    STARTER // Titulaire
+    SUBSTITUTE // Remplaçant
+}
+
 //Modèle Player
 
 model Player {
@@ -94,9 +99,10 @@ model Player {
     created_at    DateTime      @default(now())
     updated_at    DateTime      @updatedAt
 
-    team        Team         @relation(fields: [team_id], references: [id], onDelete: Cascade)
-    user        User?        @relation(fields: [user_id], references: [id], onDelete: SetNull)
-    matchEvents MatchEvent[]
+    team         Team          @relation(fields: [team_id], references: [id], onDelete: Cascade)
+    user         User?         @relation(fields: [user_id], references: [id], onDelete: SetNull)
+    matchEvents  MatchEvent[]
+    matchPlayers MatchPlayer[]
 }
 
 //Modèle Team
@@ -148,8 +154,24 @@ model Match {
     created_at DateTime       @default(now())
     updated_at DateTime       @updatedAt
 
-    team        Team         @relation(fields: [team_id], references: [id], onDelete: Cascade)
-    matchEvents MatchEvent[]
+    team         Team          @relation(fields: [team_id], references: [id], onDelete: Cascade)
+    matchEvents  MatchEvent[]
+    matchPlayers MatchPlayer[]
+}
+
+model MatchPlayer {
+    id         String              @id @default(uuid())
+    match_id   String
+    player_id  String
+    status     match_player_status @default(SUBSTITUTE)
+    created_at DateTime            @default(now())
+    updated_at DateTime            @updatedAt
+
+    match  Match  @relation(fields: [match_id], references: [id], onDelete: Cascade)
+    player Player @relation(fields: [player_id], references: [id], onDelete: Cascade)
+
+    @@unique([match_id, player_id]) // Un joueur ne peut être convoqué qu'une fois par match
+    @@map("match_players")
 }
 
 model MatchEvent {
