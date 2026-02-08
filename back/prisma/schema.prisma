@@ -175,18 +175,21 @@ model MatchPlayer {
 }
 
 model MatchEvent {
-    id         String           @id @default(uuid())
-    match_id   String
-    player_id  String
-    event_type match_event_type
-    minute     Int
-    zone       field_zone
-    body_part  body_part
-    created_at DateTime         @default(now())
-    updated_at DateTime         @updatedAt
+    id               String           @id @default(uuid())
+    match_id         String
+    player_id        String
+    event_type       match_event_type
+    minute           Int
+    zone             field_zone?
+    body_part        body_part?
+    related_event_id String? // ← NOUVEAU : lien ASSIST → GOAL
+    created_at       DateTime         @default(now())
+    updated_at       DateTime         @updatedAt
 
-    match  Match  @relation(fields: [match_id], references: [id], onDelete: Cascade)
-    player Player @relation(fields: [player_id], references: [id], onDelete: SetNull)
+    match         Match        @relation(fields: [match_id], references: [id], onDelete: Cascade)
+    player        Player       @relation(fields: [player_id], references: [id], onDelete: SetNull)
+    relatedEvent  MatchEvent?  @relation("EventRelation", fields: [related_event_id], references: [id], onDelete: SetNull)
+    relatedEvents MatchEvent[] @relation("EventRelation")
 }
 
 model ClubUser {

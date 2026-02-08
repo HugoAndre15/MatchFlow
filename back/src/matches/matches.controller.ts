@@ -15,6 +15,8 @@ import { UpdateMatchDto } from './dto/update-match.dto';
 import { UpdateMatchStatusDto } from './dto/update-match-status.dto';
 import { AddPlayersToMatchDto } from './dto/add-players-to-match.dto';
 import { UpdateMatchPlayerDto } from './dto/update-match-player.dto';
+import { CreateMatchEventDto } from './dto/create-match-event.dto';
+import { UpdateMatchEventDto } from './dto/update-match-event.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -113,6 +115,68 @@ export class MatchesController {
     @CurrentUser() user: any,
   ) {
     return this.matchesService.removePlayerFromMatch(id, playerId, user.id);
+  }
+
+    // ==================== GESTION DES ÉVÉNEMENTS ====================
+
+  /**
+   * POST /matches/:id/events
+   * Ajouter un événement à un match
+   * Body: { player_id, event_type, minute, zone?, body_part?, related_event_id? }
+   * Si 2ème YELLOW_CARD → RED_CARD automatique
+   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
+   */
+  @Post(':id/events')
+  addEventToMatch(
+    @Param('id') id: string,
+    @Body() createEventDto: CreateMatchEventDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.matchesService.addEventToMatch(id, createEventDto, user.id);
+  }
+
+  /**
+   * GET /matches/:id/events
+   * Récupérer tous les événements d'un match
+   * Triés par minute croissante
+   * Permissions: Tous les membres du club
+   */
+  @Get(':id/events')
+  getMatchEvents(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.matchesService.getMatchEvents(id, user.id);
+  }
+
+  /**
+   * PATCH /matches/:id/events/:eventId
+   * Modifier un événement
+   * Body: { player_id?, event_type?, minute?, zone?, body_part?, related_event_id? }
+   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
+   */
+  @Patch(':id/events/:eventId')
+  updateMatchEvent(
+    @Param('id') id: string,
+    @Param('eventId') eventId: string,
+    @Body() updateEventDto: UpdateMatchEventDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.matchesService.updateMatchEvent(id, eventId, updateEventDto, user.id);
+  }
+
+  /**
+   * DELETE /matches/:id/events/:eventId
+   * Supprimer un événement (si GOAL → supprime aussi les ASSIST liés)
+   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
+   */
+  @Delete(':id/events/:eventId')
+  removeMatchEvent(
+    @Param('id') id: string,
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.matchesService.removeMatchEvent(id, eventId, user.id);
   }
 
   /**

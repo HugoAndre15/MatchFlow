@@ -11,7 +11,9 @@ import { UpdateMatchDto } from './dto/update-match.dto';
 import { UpdateMatchStatusDto } from './dto/update-match-status.dto';
 import { AddPlayersToMatchDto } from './dto/add-players-to-match.dto';
 import { UpdateMatchPlayerDto } from './dto/update-match-player.dto';
-import { club_role, team_role, match_status } from '@prisma/client';
+import { CreateMatchEventDto } from './dto/create-match-event.dto';
+import { UpdateMatchEventDto } from './dto/update-match-event.dto';
+import { club_role, team_role, match_status, match_event_type } from '@prisma/client';
 
 @Injectable()
 export class MatchesService {
@@ -548,5 +550,314 @@ export class MatchesService {
     });
 
     return { message: 'Joueur retiré de la convocation' };
+  }
+
+    // ==================== GESTION DES ÉVÉNEMENTS DE MATCH ====================
+
+  /**
+   * Ajouter un événement à un match
+   * Validations: joueur convoqué, minute 0-120, ASSIST doit référencer un GOAL,
+   * 2ème YELLOW_CARD → création automatique d'un RED_CARD
+   */
+  async addEventToMatch(matchId: string, createEventDto: CreateMatchEventDto, userId: string) {
+    // 1. Vérifier que le match existe
+    const match = await this.prisma.match.findUnique({
+      where: { id: matchId },
+    });
+
+    if (!match) {
+      throw new NotFoundException('Match non trouvé');
+    }
+
+    // 2. Vérifier les permissions (COACH, ASSISTANT_COACH ou PRESIDENT)
+    const canManage = await this.canManageMatches(match.team_id, userId);
+    if (!canManage) {
+      throw new ForbiddenException(
+        'Seuls le coach, l\'assistant ou le président du club peuvent ajouter un événement',
+      );
+    }
+
+    // 3. Vérifier que le joueur est convoqué pour ce match
+    const matchPlayer = await this.prisma.matchPlayer.findUnique({
+      where: {
+        match_id_player_id: {
+          match_id: matchId,
+          player_id: createEventDto.player_id,
+        },
+      },
+    });
+
+    if (!matchPlayer) {
+      throw new BadRequestException(
+        'Le joueur doit être convoqué pour ce match avant d\'ajouter un événement',
+      );
+    }
+
+    // 4. Si c'est un ASSIST, vérifier que related_event_id pointe vers un GOAL du même match
+    if (createEventDto.event_type === match_event_type.ASSIST) {
+      if (!createEventDto.related_event_id) {
+        throw new BadRequestException(
+          'Un ASSIST doit être lié à un GOAL via related_event_id',
+        );
+      }
+
+      const relatedGoal = await this.prisma.matchEvent.findUnique({
+        where: { id: createEventDto.related_event_id },
+      });
+
+      if (!relatedGoal || relatedGoal.match_id !== matchId || relatedGoal.event_type !== match_event_type.GOAL) {
+        throw new BadRequestException(
+          'Le related_event_id doit référencer un GOAL existant dans le même match',
+        );
+      }
+    }
+
+    // 5. Créer l'événement
+    const event = await this.prisma.matchEvent.create({
+      data: {
+        match_id: matchId,
+        player_id: createEventDto.player_id,
+        event_type: createEventDto.event_type,
+        minute: createEventDto.minute,
+        zone: createEventDto.zone,
+        body_part: createEventDto.body_part,
+        related_event_id: createEventDto.related_event_id,
+      },
+      include: {
+        player: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            jersey_number: true,
+            position: true,
+          },
+        },
+      },
+    });
+
+    // 6. Si c'est un YELLOW_CARD, vérifier si c'est le 2ème → RED_CARD automatique
+    if (createEventDto.event_type === match_event_type.YELLOW_CARD) {
+      const yellowCount = await this.prisma.matchEvent.count({
+        where: {
+          match_id: matchId,
+          player_id: createEventDto.player_id,
+          event_type: match_event_type.YELLOW_CARD,
+        },
+      });
+
+      if (yellowCount >= 2) {
+        // Créer automatiquement un RED_CARD
+        const redCard = await this.prisma.matchEvent.create({
+          data: {
+            match_id: matchId,
+            player_id: createEventDto.player_id,
+            event_type: match_event_type.RED_CARD,
+            minute: createEventDto.minute,
+          },
+          include: {
+            player: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                jersey_number: true,
+                position: true,
+              },
+            },
+          },
+        });
+
+        return {
+          event,
+          autoRedCard: redCard,
+          message: '2ème carton jaune ! Carton rouge automatique créé.',
+        };
+      }
+    }
+
+    return event;
+  }
+
+  /**
+   * Récupérer tous les événements d'un match, triés par minute
+   */
+  async getMatchEvents(matchId: string, userId: string) {
+    const match = await this.prisma.match.findUnique({
+      where: { id: matchId },
+      include: { team: true },
+    });
+
+    if (!match) {
+      throw new NotFoundException('Match non trouvé');
+    }
+
+    const canAccess = await this.canAccessTeamMatches(match.team.club_id, userId);
+    if (!canAccess) {
+      throw new ForbiddenException('Vous devez être membre du club pour voir les événements');
+    }
+
+    return this.prisma.matchEvent.findMany({
+      where: { match_id: matchId },
+      include: {
+        player: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            jersey_number: true,
+            position: true,
+          },
+        },
+        relatedEvent: {
+          select: {
+            id: true,
+            event_type: true,
+            player: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { minute: 'asc' },
+    });
+  }
+
+  /**
+   * Modifier un événement de match
+   */
+  async updateMatchEvent(matchId: string, eventId: string, updateDto: UpdateMatchEventDto, userId: string) {
+    const match = await this.prisma.match.findUnique({
+      where: { id: matchId },
+    });
+
+    if (!match) {
+      throw new NotFoundException('Match non trouvé');
+    }
+
+    const canManage = await this.canManageMatches(match.team_id, userId);
+    if (!canManage) {
+      throw new ForbiddenException(
+        'Seuls le coach, l\'assistant ou le président du club peuvent modifier un événement',
+      );
+    }
+
+    const event = await this.prisma.matchEvent.findUnique({
+      where: { id: eventId },
+    });
+
+    if (!event || event.match_id !== matchId) {
+      throw new NotFoundException('Événement non trouvé dans ce match');
+    }
+
+    // Si on change le player_id, vérifier que le nouveau joueur est convoqué
+    if (updateDto.player_id) {
+      const matchPlayer = await this.prisma.matchPlayer.findUnique({
+        where: {
+          match_id_player_id: {
+            match_id: matchId,
+            player_id: updateDto.player_id,
+          },
+        },
+      });
+
+      if (!matchPlayer) {
+        throw new BadRequestException(
+          'Le joueur doit être convoqué pour ce match',
+        );
+      }
+    }
+
+    // Si on change le type en ASSIST, vérifier le related_event_id
+    const finalType = updateDto.event_type || event.event_type;
+    if (finalType === match_event_type.ASSIST) {
+      const relatedId = updateDto.related_event_id ?? event.related_event_id;
+      if (!relatedId) {
+        throw new BadRequestException(
+          'Un ASSIST doit être lié à un GOAL via related_event_id',
+        );
+      }
+
+      const relatedGoal = await this.prisma.matchEvent.findUnique({
+        where: { id: relatedId },
+      });
+
+      if (!relatedGoal || relatedGoal.match_id !== matchId || relatedGoal.event_type !== match_event_type.GOAL) {
+        throw new BadRequestException(
+          'Le related_event_id doit référencer un GOAL existant dans le même match',
+        );
+      }
+    }
+
+    return this.prisma.matchEvent.update({
+      where: { id: eventId },
+      data: {
+        player_id: updateDto.player_id,
+        event_type: updateDto.event_type,
+        minute: updateDto.minute,
+        zone: updateDto.zone,
+        body_part: updateDto.body_part,
+        related_event_id: updateDto.related_event_id,
+      },
+      include: {
+        player: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            jersey_number: true,
+            position: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Supprimer un événement de match
+   * Si c'est un GOAL, supprime aussi les ASSIST liés
+   */
+  async removeMatchEvent(matchId: string, eventId: string, userId: string) {
+    const match = await this.prisma.match.findUnique({
+      where: { id: matchId },
+    });
+
+    if (!match) {
+      throw new NotFoundException('Match non trouvé');
+    }
+
+    const canManage = await this.canManageMatches(match.team_id, userId);
+    if (!canManage) {
+      throw new ForbiddenException(
+        'Seuls le coach, l\'assistant ou le président du club peuvent supprimer un événement',
+      );
+    }
+
+    const event = await this.prisma.matchEvent.findUnique({
+      where: { id: eventId },
+    });
+
+    if (!event || event.match_id !== matchId) {
+      throw new NotFoundException('Événement non trouvé dans ce match');
+    }
+
+    // Si c'est un GOAL, supprimer d'abord les ASSIST liés à ce goal
+    if (event.event_type === match_event_type.GOAL) {
+      await this.prisma.matchEvent.deleteMany({
+        where: {
+          related_event_id: eventId,
+        },
+      });
+    }
+
+    await this.prisma.matchEvent.delete({
+      where: { id: eventId },
+    });
+
+    return { message: 'Événement supprimé' };
   }
 }
