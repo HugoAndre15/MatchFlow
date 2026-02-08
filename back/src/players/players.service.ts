@@ -221,4 +221,81 @@ export class PlayersService {
       where: { id },
     });
   }
+  
+    // ==================== STATISTIQUES ====================
+
+  /**
+   * Récupérer les statistiques agrégées d'un joueur
+   */
+  async getPlayerStats(playerId: string, userId: string) {
+    // 1. Vérifier que le joueur existe
+    const player = await this.prisma.player.findUnique({
+      where: { id: playerId },
+    });
+
+    if (!player) {
+      throw new NotFoundException('Joueur non trouvé');
+    }
+
+    // 2. Vérifier les permissions
+    const canManage = await this.canManagePlayers(player.team_id, userId);
+    if (!canManage) {
+      throw new ForbiddenException('Vous n\'avez pas accès aux stats de ce joueur');
+    }
+
+    // 3. Récupérer les convocations (MatchPlayer)
+    const matchPlayers = await this.prisma.matchPlayer.findMany({
+      where: { player_id: playerId },
+    });
+
+    const totalMatches = matchPlayers.length;
+    const matchesAsStarter = matchPlayers.filter(mp => mp.status === 'STARTER').length;
+    const matchesAsSubstitute = matchPlayers.filter(mp => mp.status === 'SUBSTITUTE').length;
+
+    // 4. Récupérer tous les événements du joueur
+    const events = await this.prisma.matchEvent.findMany({
+      where: { player_id: playerId },
+    });
+
+    // 5. Compter par type d'événement
+    const goals = events.filter(e => e.event_type === 'GOAL').length;
+    const assists = events.filter(e => e.event_type === 'ASSIST').length;
+    const yellowCards = events.filter(e => e.event_type === 'YELLOW_CARD').length;
+    const redCards = events.filter(e => e.event_type === 'RED_CARD').length;
+    const recoveries = events.filter(e => e.event_type === 'RECOVERY').length;
+    const ballLosses = events.filter(e => e.event_type === 'BALL_LOSS').length;
+
+    // 6. Buts par zone
+    const goalEvents = events.filter(e => e.event_type === 'GOAL');
+    const goalsByZone = {
+      LEFT: goalEvents.filter(e => e.zone === 'LEFT').length,
+      RIGHT: goalEvents.filter(e => e.zone === 'RIGHT').length,
+      AXIS: goalEvents.filter(e => e.zone === 'AXIS').length,
+      BOX: goalEvents.filter(e => e.zone === 'BOX').length,
+      OUTSIDE: goalEvents.filter(e => e.zone === 'OUTSIDE').length,
+    };
+
+    // 7. Buts par partie du corps
+    const goalsByBodyPart = {
+      LEFT_FOOT: goalEvents.filter(e => e.body_part === 'LEFT_FOOT').length,
+      RIGHT_FOOT: goalEvents.filter(e => e.body_part === 'RIGHT_FOOT').length,
+      HEAD: goalEvents.filter(e => e.body_part === 'HEAD').length,
+    };
+
+    return {
+      player_id: player.id,
+      player_name: `${player.last_name} ${player.first_name}`,
+      total_matches: totalMatches,
+      matches_as_starter: matchesAsStarter,
+      matches_as_substitute: matchesAsSubstitute,
+      goals,
+      assists,
+      yellow_cards: yellowCards,
+      red_cards: redCards,
+      recoveries,
+      ball_losses: ballLosses,
+      goals_by_zone: goalsByZone,
+      goals_by_body_part: goalsByBodyPart,
+    };
+  }
 }

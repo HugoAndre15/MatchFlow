@@ -48,6 +48,20 @@ export class PlayersController {
     return this.playersService.findAll(teamId, user.id);
   }
 
+    /**
+   * GET /players/:id/stats
+   * Récupérer les statistiques agrégées d'un joueur
+   * (buts, passes, cartons, convocations, répartition par zone/pied)
+   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
+   */
+  @Get(':id/stats')
+  getPlayerStats(
+    @Param('id') id: string,
+    @CurrentUser() user: any
+  ) {
+    return this.playersService.getPlayerStats(id, user.id);
+  }
+
   /**
    * GET /players/:id
    * Récupérer un joueur par ID
