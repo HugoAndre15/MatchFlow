@@ -1,38 +1,34 @@
-import { IsString, IsNotEmpty, MinLength, IsInt, IsOptional, IsEnum, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsUUID, IsOptional, IsEnum, IsInt, Min, Max } from 'class-validator';
 import { position, strong_foot, player_status } from '@prisma/client';
 
 export class CreatePlayerDto {
-    @IsString()
-    @IsNotEmpty()
-    @MinLength(2)
-    first_name: string;
+  @IsString()
+  @IsNotEmpty()
+  first_name: string;
 
-    @IsString()
-    @IsNotEmpty()
-    @MinLength(2)
-    last_name: string;
+  @IsString()
+  @IsNotEmpty()
+  last_name: string;
 
-    @IsEnum(position)
-    @IsOptional()
-    position?: position;
+  @IsUUID()
+  @IsNotEmpty()
+  team_id: string;
 
-    @IsEnum(strong_foot)
-    @IsOptional()
-    strong_foot?: strong_foot;
+  @IsOptional()
+  @IsEnum(position)
+  position?: position;
 
-    @IsInt()
-    @IsOptional()
-    jersey_number?: number;
+  @IsOptional()
+  @IsEnum(strong_foot)
+  strong_foot?: strong_foot;
 
-    @IsEnum(player_status)
-    @IsOptional()
-    status?: player_status;
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  jersey_number?: number;
 
-    @IsUUID()
-    @IsNotEmpty()
-    team_id: string;
-
-    @IsUUID()
-    @IsOptional()
-    user_id?: string;
+  @IsOptional()
+  @IsEnum(player_status)
+  status?: player_status;
 }
