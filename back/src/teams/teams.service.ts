@@ -10,6 +10,7 @@ import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
 import { AddTeamMemberDto } from './dto/add-team-member.dto';
 import { UpdateTeamMemberRoleDto } from './dto/update-team-member-role.dto';
+import { PaginationQueryDto, PaginatedResult } from '../common/dto/pagination-query.dto';
 import { club_role, team_role } from '@prisma/client';
 
 @Injectable()
@@ -141,18 +142,40 @@ export class TeamsService {
 
   /**
    * Lister toutes les teams d'un club
+   * Avec pagination, recherche par nom et tri
    * Accessible à tous les membres du club
    * Inclut le rôle de l'utilisateur dans chaque team (si membre)
    */
-  async findAll(clubId: string, userId: string) {
+  async findAll(clubId: string, userId: string, paginationQuery: PaginationQueryDto = {}): Promise<PaginatedResult<any>> {
+    const { page = 1, limit = 20, sortBy, order = 'asc', search } = paginationQuery;
+
     // Vérifier que l'utilisateur est membre du club
     const hasAccess = await this.canAccessTeam(clubId, userId);
     if (!hasAccess) {
       throw new ForbiddenException('Vous devez être membre du club pour voir ses équipes');
     }
 
+    // Construire le WHERE dynamique
+    const where: any = { club_id: clubId };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { category: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Construire le ORDER BY
+    const allowedSortFields = ['name', 'category', 'created_at'];
+    const orderBy = sortBy && allowedSortFields.includes(sortBy)
+      ? { [sortBy]: order }
+      : { name: 'asc' as const };
+
+    // Compter le total
+    const total = await this.prisma.team.count({ where });
+
     const teams = await this.prisma.team.findMany({
-      where: { club_id: clubId },
+      where,
       include: {
         _count: {
           select: {
@@ -161,6 +184,9 @@ export class TeamsService {
           },
         },
       },
+      orderBy,
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
     // Pour chaque team, récupérer le rôle de l'utilisateur
@@ -174,7 +200,15 @@ export class TeamsService {
       })
     );
 
-    return teamsWithRole;
+    return {
+      data: teamsWithRole,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**

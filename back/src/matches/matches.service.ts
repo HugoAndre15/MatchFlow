@@ -13,6 +13,7 @@ import { AddPlayersToMatchDto } from './dto/add-players-to-match.dto';
 import { UpdateMatchPlayerDto } from './dto/update-match-player.dto';
 import { CreateMatchEventDto } from './dto/create-match-event.dto';
 import { UpdateMatchEventDto } from './dto/update-match-event.dto';
+import { PaginationQueryDto, PaginatedResult } from '../common/dto/pagination-query.dto';
 import { club_role, team_role, match_status, match_event_type } from '@prisma/client';
 
 @Injectable()
@@ -146,7 +147,16 @@ export class MatchesService {
     });
   }
 
-  async findAll(teamId: string, userId: string) {
+  async findAll(
+    teamId: string,
+    userId: string,
+    paginationQuery: PaginationQueryDto = {},
+    status?: string,
+    from?: string,
+    to?: string,
+  ): Promise<PaginatedResult<any>> {
+    const { page = 1, limit = 20, sortBy, order = 'desc', search } = paginationQuery;
+
     if (!teamId) {
       throw new BadRequestException('Le paramètre teamId est requis');
     }
@@ -164,8 +174,38 @@ export class MatchesService {
       throw new ForbiddenException('Vous devez être membre du club pour voir les matchs');
     }
 
-    return this.prisma.match.findMany({
-      where: { team_id: teamId },
+    // Construire le WHERE dynamique
+    const where: any = { team_id: teamId };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (from || to) {
+      where.match_date = {};
+      if (from) where.match_date.gte = new Date(from);
+      if (to) where.match_date.lte = new Date(to);
+    }
+
+    if (search) {
+      where.OR = [
+        { opponent: { contains: search, mode: 'insensitive' } },
+        { location: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Construire le ORDER BY
+    const allowedSortFields = ['match_date', 'opponent', 'location', 'status', 'created_at'];
+    const orderBy = sortBy && allowedSortFields.includes(sortBy)
+      ? { [sortBy]: order }
+      : { match_date: 'desc' as const };
+
+    // Compter le total
+    const total = await this.prisma.match.count({ where });
+
+    // Récupérer les données paginées
+    const data = await this.prisma.match.findMany({
+      where,
       include: {
         _count: {
           select: {
@@ -174,10 +214,20 @@ export class MatchesService {
           },
         },
       },
-      orderBy: {
-        match_date: 'desc',
-      },
+      orderBy,
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: string, userId: string) {

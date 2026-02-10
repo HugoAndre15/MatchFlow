@@ -14,6 +14,7 @@ import { CreatePlayerDto } from './dto/create-player.dto';
 import { UpdatePlayerDto } from './dto/update-player.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @Controller('players')
 @UseGuards(JwtAuthGuard)
@@ -35,17 +36,19 @@ export class PlayersController {
   }
 
   /**
-   * GET /players?teamId=xxx
-   * Lister tous les joueurs d'une équipe
-   * Triés par numéro de maillot puis nom
+   * GET /players?teamId=xxx&page=1&limit=20&search=dupont&status=ACTIVE&position=GOALKEEPER&sortBy=last_name&order=asc
+   * Lister tous les joueurs d'une équipe avec pagination, filtres, recherche et tri
    * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
    */
   @Get()
   findAll(
     @Query('teamId') teamId: string,
-    @CurrentUser() user: any
+    @Query() paginationQuery: PaginationQueryDto,
+    @Query('status') status?: string,
+    @Query('position') position?: string,
+    @CurrentUser() user?: any
   ) {
-    return this.playersService.findAll(teamId, user.id);
+    return this.playersService.findAll(teamId, user.id, paginationQuery, status, position);
   }
 
     /**

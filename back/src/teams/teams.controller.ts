@@ -16,6 +16,7 @@ import { AddTeamMemberDto } from './dto/add-team-member.dto';
 import { UpdateTeamMemberRoleDto } from './dto/update-team-member-role.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @Controller('teams')
 @UseGuards(JwtAuthGuard) // Toutes les routes protégées par JWT
@@ -39,17 +40,18 @@ export class TeamsController {
   }
 
   /**
-   * GET /teams?clubId=xxx
-   * Liste toutes les équipes d'un club
+   * GET /teams?clubId=xxx&page=1&limit=20&search=u15&sortBy=name&order=asc
+   * Liste toutes les équipes d'un club avec pagination, recherche et tri
    * Query param obligatoire: clubId (UUID du club)
    * Accessible à tous les membres du club
    */
   @Get()
   findAll(
     @Query('clubId') clubId: string,
+    @Query() paginationQuery: PaginationQueryDto,
     @CurrentUser() user: any
   ) {
-    return this.teamsService.findAll(clubId, user.id);
+    return this.teamsService.findAll(clubId, user.id, paginationQuery);
   }
 
   /**

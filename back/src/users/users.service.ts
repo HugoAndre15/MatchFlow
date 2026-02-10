@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
+import { PaginationQueryDto, PaginatedResult } from '../common/dto/pagination-query.dto';
 import * as bcrypt from 'bcrypt';
 
 const safeResponseFields = {
@@ -31,12 +32,49 @@ export class UsersService {
     });
   }
 
-  findAll() {
-    return this.prisma.user.findMany({
-        select:{ 
-            ...safeResponseFields,
-        },
+  async findAll(paginationQuery: PaginationQueryDto = {}): Promise<PaginatedResult<any>> {
+    const { page = 1, limit = 20, sortBy, order = 'asc', search } = paginationQuery;
+
+    // Construire le WHERE dynamique
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { first_name: { contains: search, mode: 'insensitive' } },
+        { last_name: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Construire le ORDER BY
+    const allowedSortFields = ['email', 'first_name', 'last_name', 'created_at'];
+    const orderBy = sortBy && allowedSortFields.includes(sortBy)
+      ? { [sortBy]: order }
+      : { last_name: 'asc' as const };
+
+    // Compter le total
+    const total = await this.prisma.user.count({ where });
+
+    // Récupérer les données paginées
+    const data = await this.prisma.user.findMany({
+      where,
+      select: {
+        ...safeResponseFields,
+      },
+      orderBy,
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   findOne(id: string) {

@@ -6,7 +6,8 @@ import {
   Patch, 
   Param, 
   Delete, 
-  UseGuards 
+  UseGuards,
+  Query 
 } from '@nestjs/common';
 import { ClubsService } from './clubs.service';
 import { CreateClubDto } from './dto/create-club.dto';
@@ -16,6 +17,7 @@ import { UpdateClubMemberRoleDto } from './dto/update-club-member-role.dto';
 import { TransferPresidencyDto } from './dto/transfer-presidency.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @Controller('clubs')
 @UseGuards(JwtAuthGuard) // 🔒 Toutes les routes sont protégées par JWT
@@ -38,13 +40,17 @@ export class ClubsController {
   }
 
   /**
-   * GET /clubs
+   * GET /clubs?page=1&limit=20&search=paris&sortBy=name&order=asc
    * Liste TOUS les clubs dont je suis membre
+   * Avec pagination, recherche et tri
    * Retourne aussi mon rôle dans chaque club
    */
   @Get()
-  findAll(@CurrentUser() user: any) {
-    return this.clubsService.findAll(user.id);
+  findAll(
+    @CurrentUser() user: any,
+    @Query() paginationQuery: PaginationQueryDto,
+  ) {
+    return this.clubsService.findAll(user.id, paginationQuery);
   }
 
   /**

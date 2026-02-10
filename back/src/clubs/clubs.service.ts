@@ -11,6 +11,7 @@ import { UpdateClubDto } from './dto/update-club.dto';
 import { AddClubMemberDto } from './dto/add-club-member.dto';
 import { UpdateClubMemberRoleDto } from './dto/update-club-member-role.dto';
 import { TransferPresidencyDto } from './dto/transfer-presidency.dto';
+import { PaginationQueryDto, PaginatedResult } from '../common/dto/pagination-query.dto';
 import { club_role } from '@prisma/client';
 
 @Injectable()
@@ -98,12 +99,33 @@ export class ClubsService {
 
   /**
    * Lister tous les clubs dont l'utilisateur est membre
+   * Avec pagination, recherche par nom et tri
    */
-  async findAll(userId: string) {
+  async findAll(userId: string, paginationQuery: PaginationQueryDto = {}): Promise<PaginatedResult<any>> {
+    const { page = 1, limit = 20, sortBy, order = 'asc', search } = paginationQuery;
+
+    // Construire le WHERE dynamique
+    const where: any = {
+      user_id: userId,
+    };
+
+    if (search) {
+      where.club = {
+        name: { contains: search, mode: 'insensitive' },
+      };
+    }
+
+    // Compter le total
+    const total = await this.prisma.clubUser.count({ where });
+
+    // Construire le ORDER BY
+    const allowedSortFields = ['name', 'created_at'];
+    const clubOrderBy = sortBy && allowedSortFields.includes(sortBy)
+      ? { club: { [sortBy]: order } }
+      : { club: { name: 'asc' as const } };
+
     const clubUsers = await this.prisma.clubUser.findMany({
-      where: {
-        user_id: userId,
-      },
+      where,
       include: {
         club: {
           include: {
@@ -116,12 +138,25 @@ export class ClubsService {
           },
         },
       },
+      orderBy: clubOrderBy,
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
-    return clubUsers.map((cu) => ({
+    const data = clubUsers.map((cu) => ({
       ...cu.club,
       myRole: cu.role,
     }));
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**

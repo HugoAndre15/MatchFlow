@@ -19,6 +19,7 @@ import { CreateMatchEventDto } from './dto/create-match-event.dto';
 import { UpdateMatchEventDto } from './dto/update-match-event.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @Controller('matches')
 @UseGuards(JwtAuthGuard)
@@ -41,17 +42,20 @@ export class MatchesController {
   }
 
   /**
-   * GET /matches?teamId=xxx
-   * Lister tous les matchs d'une équipe
-   * Triés par date décroissante (plus récents en premier)
+   * GET /matches?teamId=xxx&page=1&limit=20&search=lyon&status=UPCOMING&from=2026-01-01&to=2026-12-31&sortBy=match_date&order=desc
+   * Lister tous les matchs d'une équipe avec pagination, filtres, recherche et tri
    * Permissions: Tous les membres du club
    */
   @Get()
   findAll(
     @Query('teamId') teamId: string,
-    @CurrentUser() user: any
+    @Query() paginationQuery: PaginationQueryDto,
+    @Query('status') status?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @CurrentUser() user?: any
   ) {
-    return this.matchesService.findAll(teamId, user.id);
+    return this.matchesService.findAll(teamId, user.id, paginationQuery, status, from, to);
   }
 
   // ==================== GESTION DES JOUEURS CONVOQUÉS ====================

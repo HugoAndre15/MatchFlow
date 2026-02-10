@@ -1,9 +1,10 @@
-import { Controller, Get, Body, Patch, Param, Delete, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Body, Patch, Param, Delete, UseGuards, ForbiddenException, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard) 
@@ -34,10 +35,10 @@ export class UsersController {
     return this.usersService.updatePassword(user.id, updatePasswordDto);
   }
 
-  // Liste tous les utilisateurs (TODO: réserver aux admins)
+  // Liste tous les utilisateurs avec pagination et recherche (TODO: réserver aux admins)
   @Get()
-  findAll() {
-    return this.usersService.findAll();
+  findAll(@Query() paginationQuery: PaginationQueryDto) {
+    return this.usersService.findAll(paginationQuery);
   }
 
   // Récupère un utilisateur par ID
