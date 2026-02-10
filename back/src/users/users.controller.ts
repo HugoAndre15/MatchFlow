@@ -4,7 +4,7 @@ import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @ApiTags('Users')
