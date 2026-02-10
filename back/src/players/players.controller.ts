@@ -9,6 +9,7 @@ import {
   UseGuards,
   Query 
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { PlayersService } from './players.service';
 import { CreatePlayerDto } from './dto/create-player.dto';
 import { UpdatePlayerDto } from './dto/update-player.dto';
@@ -16,18 +17,18 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
+@ApiTags('Players')
+@ApiBearerAuth('JWT-auth')
 @Controller('players')
 @UseGuards(JwtAuthGuard)
 export class PlayersController {
   constructor(private readonly playersService: PlayersService) {}
 
-  /**
-   * POST /players
-   * Créer un joueur de football
-   * Body: { first_name, last_name, team_id, position?, jersey_number?, strong_foot?, status? }
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Post()
+  @ApiOperation({ summary: 'Créer un joueur', description: 'Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club' })
+  @ApiResponse({ status: 201, description: 'Joueur créé' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
+  @ApiResponse({ status: 409, description: 'Numéro de maillot déjà pris' })
   create(
     @Body() createPlayerDto: CreatePlayerDto,
     @CurrentUser() user: any
@@ -35,12 +36,12 @@ export class PlayersController {
     return this.playersService.create(createPlayerDto, user.id);
   }
 
-  /**
-   * GET /players?teamId=xxx&page=1&limit=20&search=dupont&status=ACTIVE&position=GOALKEEPER&sortBy=last_name&order=asc
-   * Lister tous les joueurs d'une équipe avec pagination, filtres, recherche et tri
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Get()
+  @ApiOperation({ summary: 'Lister les joueurs d\'une équipe', description: 'Avec pagination, filtres par statut/position, recherche et tri' })
+  @ApiQuery({ name: 'teamId', description: 'UUID de l\'équipe (obligatoire)', required: true })
+  @ApiQuery({ name: 'status', description: 'Filtrer par statut (ACTIVE, INJURED, SUSPENDED, RETIRED)', required: false })
+  @ApiQuery({ name: 'position', description: 'Filtrer par poste (GOALKEEPER, DEFENDER, MIDFIELDER, FORWARD)', required: false })
+  @ApiResponse({ status: 200, description: 'Liste paginée retournée' })
   findAll(
     @Query('teamId') teamId: string,
     @Query() paginationQuery: PaginationQueryDto,
@@ -51,13 +52,11 @@ export class PlayersController {
     return this.playersService.findAll(teamId, user.id, paginationQuery, status, position);
   }
 
-    /**
-   * GET /players/:id/stats
-   * Récupérer les statistiques agrégées d'un joueur
-   * (buts, passes, cartons, convocations, répartition par zone/pied)
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Get(':id/stats')
+  @ApiOperation({ summary: 'Statistiques d\'un joueur', description: 'Buts, passes, cartons, convocations, répartition par zone/pied' })
+  @ApiParam({ name: 'id', description: 'UUID du joueur' })
+  @ApiResponse({ status: 200, description: 'Statistiques retournées' })
+  @ApiResponse({ status: 404, description: 'Joueur non trouvé' })
   getPlayerStats(
     @Param('id') id: string,
     @CurrentUser() user: any
@@ -65,13 +64,11 @@ export class PlayersController {
     return this.playersService.getPlayerStats(id, user.id);
   }
 
-  /**
-   * GET /players/:id
-   * Récupérer un joueur par ID
-   * Inclut les infos de la team et du club
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Get(':id')
+  @ApiOperation({ summary: 'Détail d\'un joueur', description: 'Inclut infos team et club' })
+  @ApiParam({ name: 'id', description: 'UUID du joueur' })
+  @ApiResponse({ status: 200, description: 'Joueur trouvé' })
+  @ApiResponse({ status: 404, description: 'Joueur non trouvé' })
   findOne(
     @Param('id') id: string,
     @CurrentUser() user: any
@@ -79,14 +76,11 @@ export class PlayersController {
     return this.playersService.findOne(id, user.id);
   }
 
-  /**
-   * PATCH /players/:id
-   * Modifier un joueur (y compris changer d'équipe)
-   * Body: { first_name?, last_name?, team_id?, position?, jersey_number?, strong_foot?, status? }
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   * Note: Si team_id change, vérifie les permissions sur les 2 équipes
-   */
   @Patch(':id')
+  @ApiOperation({ summary: 'Modifier un joueur', description: 'Y compris changer d\'équipe via team_id' })
+  @ApiParam({ name: 'id', description: 'UUID du joueur' })
+  @ApiResponse({ status: 200, description: 'Joueur mis à jour' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   update(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -95,12 +89,11 @@ export class PlayersController {
     return this.playersService.update(id, user.id, updatePlayerDto);
   }
 
-  /**
-   * DELETE /players/:id
-   * Supprimer un joueur
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Delete(':id')
+  @ApiOperation({ summary: 'Supprimer un joueur' })
+  @ApiParam({ name: 'id', description: 'UUID du joueur' })
+  @ApiResponse({ status: 200, description: 'Joueur supprimé' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   remove(
     @Param('id') id: string,
     @CurrentUser() user: any

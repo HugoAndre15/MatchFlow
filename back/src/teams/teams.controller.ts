@@ -9,6 +9,7 @@ import {
   UseGuards,
   Query 
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { TeamsService } from './teams.service';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
@@ -18,20 +19,19 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
+@ApiTags('Teams')
+@ApiBearerAuth('JWT-auth')
 @Controller('teams')
-@UseGuards(JwtAuthGuard) // Toutes les routes protégées par JWT
+@UseGuards(JwtAuthGuard)
 export class TeamsController {
   constructor(private readonly teamsService: TeamsService) {}
 
   // ==================== CRUD TEAM ====================
 
-  /**
-   * POST /teams
-   * Créer une nouvelle équipe dans un club
-   * Body: { name, category, club_id, coach_user_id? }
-   * Le créateur devient COACH par défaut si coach_user_id absent
-   */
   @Post()
+  @ApiOperation({ summary: 'Créer une équipe', description: 'Créer une équipe dans un club. Le créateur devient COACH par défaut' })
+  @ApiResponse({ status: 201, description: 'Équipe créée' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   create(
     @Body() createTeamDto: CreateTeamDto,
     @CurrentUser() user: any
@@ -39,13 +39,10 @@ export class TeamsController {
     return this.teamsService.create(createTeamDto, user.id);
   }
 
-  /**
-   * GET /teams?clubId=xxx&page=1&limit=20&search=u15&sortBy=name&order=asc
-   * Liste toutes les équipes d'un club avec pagination, recherche et tri
-   * Query param obligatoire: clubId (UUID du club)
-   * Accessible à tous les membres du club
-   */
   @Get()
+  @ApiOperation({ summary: 'Lister les équipes d\'un club', description: 'Liste paginée avec recherche et tri' })
+  @ApiQuery({ name: 'clubId', description: 'UUID du club (obligatoire)', required: true })
+  @ApiResponse({ status: 200, description: 'Liste paginée retournée' })
   findAll(
     @Query('clubId') clubId: string,
     @Query() paginationQuery: PaginationQueryDto,
@@ -54,13 +51,11 @@ export class TeamsController {
     return this.teamsService.findAll(clubId, user.id, paginationQuery);
   }
 
-  /**
-   * GET /teams/:id
-   * Récupérer les détails d'une équipe
-   * Inclut: membres, joueurs, mon rôle team, mon rôle club
-   * Accessible aux membres du club parent
-   */
   @Get(':id')
+  @ApiOperation({ summary: 'Détail d\'une équipe', description: 'Inclut membres, joueurs, rôles' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })
+  @ApiResponse({ status: 200, description: 'Équipe trouvée' })
+  @ApiResponse({ status: 404, description: 'Équipe non trouvée' })
   findOne(
     @Param('id') id: string,
     @CurrentUser() user: any
@@ -68,13 +63,11 @@ export class TeamsController {
     return this.teamsService.findOne(id, user.id);
   }
 
-  /**
-   * PATCH /teams/:id
-   * Modifier une équipe (nom, catégorie)
-   * Body: { name?, category? }
-   * Autorisé: COACH de l'équipe OU PRESIDENT du club
-   */
   @Patch(':id')
+  @ApiOperation({ summary: 'Modifier une équipe', description: 'COACH de l\'équipe ou PRESIDENT du club' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })
+  @ApiResponse({ status: 200, description: 'Équipe mise à jour' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   update(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -83,12 +76,11 @@ export class TeamsController {
     return this.teamsService.update(id, user.id, updateTeamDto);
   }
 
-  /**
-   * DELETE /teams/:id
-   * Supprimer une équipe (cascade sur players, teamUsers, matches)
-   * Autorisé: COACH de l'équipe OU PRESIDENT du club
-   */
   @Delete(':id')
+  @ApiOperation({ summary: 'Supprimer une équipe', description: 'Cascade sur players, teamUsers, matches' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })
+  @ApiResponse({ status: 200, description: 'Équipe supprimée' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   remove(
     @Param('id') id: string,
     @CurrentUser() user: any
@@ -98,12 +90,10 @@ export class TeamsController {
 
   // ==================== GESTION DES MEMBRES ====================
 
-  /**
-   * GET /teams/:id/members
-   * Liste tous les membres d'une équipe (COACH, ASSISTANT_COACH)
-   * Accessible à tous les membres du club
-   */
   @Get(':id/members')
+  @ApiOperation({ summary: 'Lister les membres d\'une équipe', description: 'COACH et ASSISTANT_COACH' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })
+  @ApiResponse({ status: 200, description: 'Liste des membres' })
   getMembers(
     @Param('id') id: string,
     @CurrentUser() user: any
@@ -111,14 +101,11 @@ export class TeamsController {
     return this.teamsService.getMembers(id, user.id);
   }
 
-  /**
-   * POST /teams/:id/members
-   * Ajouter un membre à l'équipe (COACH ou ASSISTANT_COACH uniquement)
-   * Body: { user_id, role: "COACH" | "ASSISTANT_COACH" }
-   * Pour ajouter des joueurs de foot, utiliser POST /players
-   * Permissions: COACH ou PRESIDENT club
-   */
   @Post(':id/members')
+  @ApiOperation({ summary: 'Ajouter un membre à l\'équipe', description: 'COACH ou ASSISTANT_COACH uniquement. Pour les joueurs → POST /players' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })
+  @ApiResponse({ status: 201, description: 'Membre ajouté' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   addMember(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -127,13 +114,12 @@ export class TeamsController {
     return this.teamsService.addMember(id, user.id, addMemberDto);
   }
 
-  /**
-   * DELETE /teams/:id/members/:userId
-   * Retirer un membre de l'équipe (COACH ou ASSISTANT_COACH)
-   * Permissions: COACH ou PRESIDENT club
-   * Règle: ASSISTANT_COACH ne peut pas retirer un COACH
-   */
   @Delete(':id/members/:userId')
+  @ApiOperation({ summary: 'Retirer un membre de l\'équipe' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })
+  @ApiParam({ name: 'userId', description: 'UUID du membre à retirer' })
+  @ApiResponse({ status: 200, description: 'Membre retiré' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   removeMember(
     @Param('id') teamId: string,
     @Param('userId') memberIdToRemove: string,
@@ -142,13 +128,12 @@ export class TeamsController {
     return this.teamsService.removeMember(teamId, user.id, memberIdToRemove);
   }
 
-  /**
-   * PATCH /teams/:id/members/:userId
-   * Changer le rôle d'un membre (COACH ou ASSISTANT_COACH)
-   * Body: { role: "COACH" | "ASSISTANT_COACH" }
-   * Permissions: COACH ou PRESIDENT club
-   */
   @Patch(':id/members/:userId')
+  @ApiOperation({ summary: 'Changer le rôle d\'un membre', description: 'COACH ou ASSISTANT_COACH' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })
+  @ApiParam({ name: 'userId', description: 'UUID du membre à modifier' })
+  @ApiResponse({ status: 200, description: 'Rôle mis à jour' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   updateMemberRole(
     @Param('id') teamId: string,
     @Param('userId') memberIdToUpdate: string,
@@ -163,12 +148,10 @@ export class TeamsController {
     );
   }
 
-  /**
-   * DELETE /teams/:id/leave
-   * Quitter une équipe
-   * Contrairement au club, même un COACH peut quitter
-   */
   @Delete(':id/leave')
+  @ApiOperation({ summary: 'Quitter une équipe', description: 'Même un COACH peut quitter' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })
+  @ApiResponse({ status: 200, description: 'Équipe quittée' })
   leaveTeam(
     @Param('id') teamId: string,
     @CurrentUser() user: any

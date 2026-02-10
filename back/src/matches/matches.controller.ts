@@ -9,6 +9,7 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { MatchesService } from './matches.service';
 import { CreateMatchDto } from './dto/create-match.dto';
 import { UpdateMatchDto } from './dto/update-match.dto';
@@ -21,19 +22,17 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
+@ApiTags('Matches')
+@ApiBearerAuth('JWT-auth')
 @Controller('matches')
 @UseGuards(JwtAuthGuard)
 export class MatchesController {
   constructor(private readonly matchesService: MatchesService) {}
 
-  /**
-   * POST /matches
-   * Créer un nouveau match
-   * Body: { team_id, opponent, location, match_date }
-   * Status sera UPCOMING par défaut
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Post()
+  @ApiOperation({ summary: 'Créer un match', description: 'Status UPCOMING par défaut' })
+  @ApiResponse({ status: 201, description: 'Match créé' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   create(
     @Body() createMatchDto: CreateMatchDto,
     @CurrentUser() user: any
@@ -41,12 +40,13 @@ export class MatchesController {
     return this.matchesService.create(createMatchDto, user.id);
   }
 
-  /**
-   * GET /matches?teamId=xxx&page=1&limit=20&search=lyon&status=UPCOMING&from=2026-01-01&to=2026-12-31&sortBy=match_date&order=desc
-   * Lister tous les matchs d'une équipe avec pagination, filtres, recherche et tri
-   * Permissions: Tous les membres du club
-   */
   @Get()
+  @ApiOperation({ summary: 'Lister les matchs d\'une équipe', description: 'Avec pagination, filtres par statut/dates, recherche et tri' })
+  @ApiQuery({ name: 'teamId', description: 'UUID de l\'équipe (obligatoire)', required: true })
+  @ApiQuery({ name: 'status', description: 'Filtrer par statut (UPCOMING, LIVE, FINISHED)', required: false })
+  @ApiQuery({ name: 'from', description: 'Date de début (ISO 8601)', required: false })
+  @ApiQuery({ name: 'to', description: 'Date de fin (ISO 8601)', required: false })
+  @ApiResponse({ status: 200, description: 'Liste paginée retournée' })
   findAll(
     @Query('teamId') teamId: string,
     @Query() paginationQuery: PaginationQueryDto,
@@ -59,15 +59,12 @@ export class MatchesController {
   }
 
   // ==================== GESTION DES JOUEURS CONVOQUÉS ====================
-  // NOTE: Ces routes doivent être AVANT les routes génériques (:id) pour le routing correct
 
-  /**
-   * POST /matches/:id/players
-   * Convoquer des joueurs pour un match
-   * Body: { players: [{ player_id, status: "STARTER" | "SUBSTITUTE" }] }
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Post(':id/players')
+  @ApiOperation({ summary: 'Convoquer des joueurs', description: 'Ajouter des joueurs à la feuille de match' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiResponse({ status: 201, description: 'Joueurs convoqués' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   addPlayersToMatch(
     @Param('id') id: string,
     @Body() addPlayersDto: AddPlayersToMatchDto,
@@ -76,13 +73,10 @@ export class MatchesController {
     return this.matchesService.addPlayersToMatch(id, addPlayersDto, user.id);
   }
 
-  /**
-   * GET /matches/:id/players
-   * Récupérer la liste des joueurs convoqués pour un match
-   * Triés par status (STARTER puis SUBSTITUTE) puis par nom
-   * Permissions: Tous les membres du club
-   */
   @Get(':id/players')
+  @ApiOperation({ summary: 'Joueurs convoqués', description: 'Liste triée par status (STARTER puis SUBSTITUTE)' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiResponse({ status: 200, description: 'Liste des joueurs convoqués' })
   getMatchPlayers(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -90,13 +84,11 @@ export class MatchesController {
     return this.matchesService.getMatchPlayers(id, user.id);
   }
 
-  /**
-   * PATCH /matches/:id/players/:playerId
-   * Modifier le status d'un joueur convoqué (STARTER ↔ SUBSTITUTE)
-   * Body: { status: "STARTER" | "SUBSTITUTE" }
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Patch(':id/players/:playerId')
+  @ApiOperation({ summary: 'Modifier le status d\'un joueur convoqué', description: 'STARTER ↔ SUBSTITUTE' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiParam({ name: 'playerId', description: 'UUID du joueur' })
+  @ApiResponse({ status: 200, description: 'Status mis à jour' })
   updateMatchPlayerStatus(
     @Param('id') id: string,
     @Param('playerId') playerId: string,
@@ -106,13 +98,12 @@ export class MatchesController {
     return this.matchesService.updateMatchPlayerStatus(id, playerId, updateDto, user.id);
   }
 
-  /**
-   * DELETE /matches/:id/players/:playerId
-   * Retirer un joueur de la convocation
-   * Bloqué si le joueur a des événements enregistrés
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Delete(':id/players/:playerId')
+  @ApiOperation({ summary: 'Retirer un joueur de la convocation', description: 'Bloqué si le joueur a des événements' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiParam({ name: 'playerId', description: 'UUID du joueur' })
+  @ApiResponse({ status: 200, description: 'Joueur retiré' })
+  @ApiResponse({ status: 400, description: 'Joueur a des événements enregistrés' })
   removePlayerFromMatch(
     @Param('id') id: string,
     @Param('playerId') playerId: string,
@@ -121,16 +112,13 @@ export class MatchesController {
     return this.matchesService.removePlayerFromMatch(id, playerId, user.id);
   }
 
-    // ==================== GESTION DES ÉVÉNEMENTS ====================
+  // ==================== GESTION DES ÉVÉNEMENTS ====================
 
-  /**
-   * POST /matches/:id/events
-   * Ajouter un événement à un match
-   * Body: { player_id, event_type, minute, zone?, body_part?, related_event_id? }
-   * Si 2ème YELLOW_CARD → RED_CARD automatique
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Post(':id/events')
+  @ApiOperation({ summary: 'Ajouter un événement', description: 'Si 2ème YELLOW_CARD → RED_CARD automatique' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiResponse({ status: 201, description: 'Événement créé' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   addEventToMatch(
     @Param('id') id: string,
     @Body() createEventDto: CreateMatchEventDto,
@@ -139,13 +127,10 @@ export class MatchesController {
     return this.matchesService.addEventToMatch(id, createEventDto, user.id);
   }
 
-  /**
-   * GET /matches/:id/events
-   * Récupérer tous les événements d'un match
-   * Triés par minute croissante
-   * Permissions: Tous les membres du club
-   */
   @Get(':id/events')
+  @ApiOperation({ summary: 'Événements du match', description: 'Triés par minute croissante' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiResponse({ status: 200, description: 'Liste des événements' })
   getMatchEvents(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -153,13 +138,11 @@ export class MatchesController {
     return this.matchesService.getMatchEvents(id, user.id);
   }
 
-  /**
-   * PATCH /matches/:id/events/:eventId
-   * Modifier un événement
-   * Body: { player_id?, event_type?, minute?, zone?, body_part?, related_event_id? }
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Patch(':id/events/:eventId')
+  @ApiOperation({ summary: 'Modifier un événement' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiParam({ name: 'eventId', description: 'UUID de l\'événement' })
+  @ApiResponse({ status: 200, description: 'Événement mis à jour' })
   updateMatchEvent(
     @Param('id') id: string,
     @Param('eventId') eventId: string,
@@ -169,12 +152,11 @@ export class MatchesController {
     return this.matchesService.updateMatchEvent(id, eventId, updateEventDto, user.id);
   }
 
-  /**
-   * DELETE /matches/:id/events/:eventId
-   * Supprimer un événement (si GOAL → supprime aussi les ASSIST liés)
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Delete(':id/events/:eventId')
+  @ApiOperation({ summary: 'Supprimer un événement', description: 'Si GOAL → supprime aussi les ASSIST liés' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiParam({ name: 'eventId', description: 'UUID de l\'événement' })
+  @ApiResponse({ status: 200, description: 'Événement supprimé' })
   removeMatchEvent(
     @Param('id') id: string,
     @Param('eventId') eventId: string,
@@ -183,14 +165,11 @@ export class MatchesController {
     return this.matchesService.removeMatchEvent(id, eventId, user.id);
   }
 
-  /**
-   * PATCH /matches/:id/status
-   * Changer le status du match
-   * Body: { status: "UPCOMING" | "LIVE" | "FINISHED" }
-   * Transitions autorisées: UPCOMING → LIVE → FINISHED (pas de retour)
-   * Permissions: COACH ou PRESIDENT uniquement
-   */
   @Patch(':id/status')
+  @ApiOperation({ summary: 'Changer le statut du match', description: 'UPCOMING → LIVE → FINISHED (pas de retour)' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiResponse({ status: 200, description: 'Statut mis à jour' })
+  @ApiResponse({ status: 400, description: 'Transition de statut invalide' })
   updateStatus(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -199,13 +178,11 @@ export class MatchesController {
     return this.matchesService.updateStatus(id, user.id, updateStatusDto);
   }
 
-  /**
-   * GET /matches/:id
-   * Récupérer les détails d'un match
-   * Inclut: team, club, événements avec joueurs, score calculé
-   * Permissions: Tous les membres du club
-   */
   @Get(':id')
+  @ApiOperation({ summary: 'Détail d\'un match', description: 'Inclut team, club, événements avec joueurs, score calculé' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiResponse({ status: 200, description: 'Match trouvé' })
+  @ApiResponse({ status: 404, description: 'Match non trouvé' })
   findOne(
     @Param('id') id: string,
     @CurrentUser() user: any
@@ -213,14 +190,11 @@ export class MatchesController {
     return this.matchesService.findOne(id, user.id);
   }
 
-  /**
-   * PATCH /matches/:id
-   * Modifier un match (opponent, location, date)
-   * Body: { opponent?, location?, match_date? }
-   * Le status ne se modifie PAS ici (voir /matches/:id/status)
-   * Permissions: COACH, ASSISTANT_COACH ou PRESIDENT du club
-   */
   @Patch(':id')
+  @ApiOperation({ summary: 'Modifier un match', description: 'Modifier opponent, location, date. Le status se modifie via /status' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiResponse({ status: 200, description: 'Match mis à jour' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   update(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -229,12 +203,11 @@ export class MatchesController {
     return this.matchesService.update(id, user.id, updateMatchDto);
   }
 
-  /**
-   * DELETE /matches/:id
-   * Supprimer un match (cascade sur matchEvents)
-   * Permissions: COACH ou PRESIDENT uniquement
-   */
   @Delete(':id')
+  @ApiOperation({ summary: 'Supprimer un match', description: 'Cascade sur les événements. COACH ou PRESIDENT uniquement' })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiResponse({ status: 200, description: 'Match supprimé' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   remove(
     @Param('id') id: string,
     @CurrentUser() user: any
