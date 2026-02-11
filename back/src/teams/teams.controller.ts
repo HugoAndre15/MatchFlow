@@ -148,6 +148,40 @@ export class TeamsController {
     );
   }
 
+  // ==================== STATISTIQUES ====================
+
+  @Get(':id/stats')
+  @ApiOperation({
+    summary: 'Statistiques globales d\'une équipe',
+    description: 'Total matchs, buts, passes, cartons, moyenne par match, top buteur/passeur, historique. Accessible au COACH, ASSISTANT_COACH ou PRESIDENT uniquement.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })
+  @ApiResponse({ status: 200, description: 'Statistiques de l\'équipe retournées' })
+  @ApiResponse({ status: 403, description: 'Non autorisé - Réservé au staff technique et au président' })
+  @ApiResponse({ status: 404, description: 'Équipe non trouvée' })
+  getTeamStatistics(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.teamsService.getTeamStatistics(id, user.id);
+  }
+
+  @Get(':id/stats/players')
+  @ApiOperation({
+    summary: 'Statistiques individuelles des joueurs d\'une équipe',
+    description: 'Buts, passes, cartons, récupérations, pertes de balle par joueur. Trié par nombre de buts décroissant. Accessible au COACH, ASSISTANT_COACH ou PRESIDENT uniquement.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })
+  @ApiResponse({ status: 200, description: 'Statistiques des joueurs retournées' })
+  @ApiResponse({ status: 403, description: 'Non autorisé - Réservé au staff technique et au président' })
+  @ApiResponse({ status: 404, description: 'Équipe non trouvée' })
+  getTeamPlayersStatistics(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.teamsService.getTeamPlayersStatistics(id, user.id);
+  }
+
   @Delete(':id/leave')
   @ApiOperation({ summary: 'Quitter une équipe', description: 'Même un COACH peut quitter' })
   @ApiParam({ name: 'id', description: 'UUID de l\'équipe' })

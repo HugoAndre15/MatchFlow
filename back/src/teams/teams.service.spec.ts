@@ -3,7 +3,7 @@ import { TeamsService } from './teams.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createMockPrisma } from '../common/test/prisma-mock.helper';
 import { ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
-import { club_role, team_role } from '@prisma/client';
+import { club_role, team_role, match_event_type, match_location, match_status } from '@prisma/client';
 
 describe('TeamsService', () => {
   let service: TeamsService;
@@ -652,6 +652,295 @@ describe('TeamsService', () => {
 
       // Act & Assert
       await expect(service.leaveTeam('team-1', 'user-1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ==================== GET TEAM STATISTICS ====================
+
+  describe('getTeamStatistics', () => {
+    const teamId = 'team-1';
+    const userId = 'user-1';
+    const clubId = 'club-1';
+
+    const mockTeamWithMatches = {
+      id: teamId,
+      name: 'U19 Garçons',
+      category: 'U19',
+      club_id: clubId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      matches: [
+        {
+          id: 'match-1',
+          opponent: 'FC Alpha',
+          match_date: new Date('2025-03-01'),
+          location: match_location.HOME,
+          status: match_status.FINISHED,
+          matchEvents: [
+            {
+              id: 'evt-1',
+              player_id: 'player-1',
+              event_type: match_event_type.GOAL,
+              player: { id: 'player-1', first_name: 'John', last_name: 'Doe', jersey_number: 9, position: 'FORWARD' },
+            },
+            {
+              id: 'evt-2',
+              player_id: 'player-1',
+              event_type: match_event_type.GOAL,
+              player: { id: 'player-1', first_name: 'John', last_name: 'Doe', jersey_number: 9, position: 'FORWARD' },
+            },
+            {
+              id: 'evt-3',
+              player_id: 'player-2',
+              event_type: match_event_type.ASSIST,
+              player: { id: 'player-2', first_name: 'Jane', last_name: 'Smith', jersey_number: 10, position: 'MIDFIELDER' },
+            },
+          ],
+        },
+        {
+          id: 'match-2',
+          opponent: 'FC Beta',
+          match_date: new Date('2025-03-08'),
+          location: match_location.AWAY,
+          status: match_status.FINISHED,
+          matchEvents: [
+            {
+              id: 'evt-4',
+              player_id: 'player-2',
+              event_type: match_event_type.GOAL,
+              player: { id: 'player-2', first_name: 'Jane', last_name: 'Smith', jersey_number: 10, position: 'MIDFIELDER' },
+            },
+            {
+              id: 'evt-5',
+              player_id: 'player-1',
+              event_type: match_event_type.YELLOW_CARD,
+              player: { id: 'player-1', first_name: 'John', last_name: 'Doe', jersey_number: 9, position: 'FORWARD' },
+            },
+          ],
+        },
+        {
+          id: 'match-3',
+          opponent: 'FC Gamma',
+          match_date: new Date('2025-03-15'),
+          location: match_location.HOME,
+          status: match_status.UPCOMING,
+          matchEvents: [],
+        },
+      ],
+    };
+
+    it('devrait retourner les statistiques globales pour un COACH', async () => {
+      // Arrange
+      prisma.team.findUnique.mockResolvedValue(mockTeamWithMatches);
+      prisma.clubUser.findFirst.mockResolvedValue(null);
+      prisma.teamUser.findFirst.mockResolvedValue({ role: team_role.COACH });
+
+      // Act
+      const result = await service.getTeamStatistics(teamId, userId);
+
+      // Assert
+      expect(result.teamId).toBe(teamId);
+      expect(result.teamName).toBe('U19 Garçons');
+      expect(result.totalMatches).toBe(3);
+      expect(result.finishedMatches).toBe(2);
+      expect(result.upcomingMatches).toBe(1);
+      expect(result.liveMatches).toBe(0);
+      expect(result.totalGoals).toBe(3);
+      expect(result.totalAssists).toBe(1);
+      expect(result.totalYellowCards).toBe(1);
+      expect(result.averageGoalsPerMatch).toBe(1.5);
+      expect(result.topScorer).toEqual({
+        playerId: 'player-1',
+        playerName: 'John Doe',
+        jerseyNumber: 9,
+        goals: 2,
+      });
+      expect(result.topAssister).toEqual({
+        playerId: 'player-2',
+        playerName: 'Jane Smith',
+        jerseyNumber: 10,
+        assists: 1,
+      });
+      expect(result.matchesHistory).toHaveLength(3);
+      expect(result.matchesHistory[0].goals).toBe(2);
+      expect(result.matchesHistory[1].goals).toBe(1);
+      expect(result.matchesHistory[2].goals).toBe(0);
+    });
+
+    it('devrait retourner les statistiques pour un PRESIDENT', async () => {
+      // Arrange
+      prisma.team.findUnique.mockResolvedValue(mockTeamWithMatches);
+      prisma.clubUser.findFirst.mockResolvedValue({ role: club_role.PRESIDENT });
+
+      // Act
+      const result = await service.getTeamStatistics(teamId, userId);
+
+      // Assert
+      expect(result.teamId).toBe(teamId);
+      expect(result.totalGoals).toBe(3);
+    });
+
+    it('devrait retourner des stats à zéro pour une équipe sans matchs', async () => {
+      // Arrange
+      const emptyTeam = { ...mockTeamWithMatches, matches: [] };
+      prisma.team.findUnique.mockResolvedValue(emptyTeam);
+      prisma.clubUser.findFirst.mockResolvedValue(null);
+      prisma.teamUser.findFirst.mockResolvedValue({ role: team_role.COACH });
+
+      // Act
+      const result = await service.getTeamStatistics(teamId, userId);
+
+      // Assert
+      expect(result.totalMatches).toBe(0);
+      expect(result.totalGoals).toBe(0);
+      expect(result.averageGoalsPerMatch).toBe(0);
+      expect(result.topScorer).toBeNull();
+      expect(result.topAssister).toBeNull();
+      expect(result.matchesHistory).toEqual([]);
+    });
+
+    it('devrait lancer NotFoundException si l\'équipe n\'existe pas', async () => {
+      // Arrange
+      prisma.team.findUnique.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.getTeamStatistics(teamId, userId)).rejects.toThrow(NotFoundException);
+    });
+
+    it('devrait lancer ForbiddenException si l\'utilisateur n\'est pas COACH/ASSISTANT/PRESIDENT', async () => {
+      // Arrange
+      prisma.team.findUnique.mockResolvedValue(mockTeamWithMatches);
+      prisma.clubUser.findFirst.mockResolvedValue({ role: club_role.RESPONSABLE });
+      prisma.teamUser.findFirst.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.getTeamStatistics(teamId, userId)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  // ==================== GET TEAM PLAYERS STATISTICS ====================
+
+  describe('getTeamPlayersStatistics', () => {
+    const teamId = 'team-1';
+    const userId = 'user-1';
+    const clubId = 'club-1';
+
+    const mockPlayers = [
+      {
+        id: 'player-1',
+        first_name: 'John',
+        last_name: 'Doe',
+        jersey_number: 9,
+        position: 'FORWARD',
+        matchEvents: [
+          { event_type: match_event_type.GOAL },
+          { event_type: match_event_type.GOAL },
+          { event_type: match_event_type.ASSIST },
+          { event_type: match_event_type.YELLOW_CARD },
+        ],
+        matchPlayers: [{ id: 'mp-1' }, { id: 'mp-2' }, { id: 'mp-3' }],
+      },
+      {
+        id: 'player-2',
+        first_name: 'Jane',
+        last_name: 'Smith',
+        jersey_number: 10,
+        position: 'MIDFIELDER',
+        matchEvents: [
+          { event_type: match_event_type.GOAL },
+          { event_type: match_event_type.RECOVERY },
+          { event_type: match_event_type.RECOVERY },
+        ],
+        matchPlayers: [{ id: 'mp-4' }, { id: 'mp-5' }],
+      },
+    ];
+
+    it('devrait retourner les stats de chaque joueur triées par buts', async () => {
+      // Arrange
+      prisma.team.findUnique.mockResolvedValue({ id: teamId, club_id: clubId });
+      prisma.clubUser.findFirst.mockResolvedValue(null);
+      prisma.teamUser.findFirst.mockResolvedValue({ role: team_role.COACH });
+      prisma.player.findMany.mockResolvedValue(mockPlayers);
+
+      // Act
+      const result = await service.getTeamPlayersStatistics(teamId, userId);
+
+      // Assert
+      expect(result).toHaveLength(2);
+      // Trié par buts décroissants
+      expect(result[0].playerId).toBe('player-1');
+      expect(result[0]).toEqual({
+        playerId: 'player-1',
+        playerName: 'John Doe',
+        jerseyNumber: 9,
+        position: 'FORWARD',
+        matchesPlayed: 3,
+        goals: 2,
+        assists: 1,
+        yellowCards: 1,
+        redCards: 0,
+        recoveries: 0,
+        ballLosses: 0,
+      });
+      expect(result[1]).toEqual({
+        playerId: 'player-2',
+        playerName: 'Jane Smith',
+        jerseyNumber: 10,
+        position: 'MIDFIELDER',
+        matchesPlayed: 2,
+        goals: 1,
+        assists: 0,
+        yellowCards: 0,
+        redCards: 0,
+        recoveries: 2,
+        ballLosses: 0,
+      });
+    });
+
+    it('devrait retourner un tableau vide si aucun joueur', async () => {
+      // Arrange
+      prisma.team.findUnique.mockResolvedValue({ id: teamId, club_id: clubId });
+      prisma.clubUser.findFirst.mockResolvedValue(null);
+      prisma.teamUser.findFirst.mockResolvedValue({ role: team_role.COACH });
+      prisma.player.findMany.mockResolvedValue([]);
+
+      // Act
+      const result = await service.getTeamPlayersStatistics(teamId, userId);
+
+      // Assert
+      expect(result).toEqual([]);
+    });
+
+    it('devrait lancer NotFoundException si l\'équipe n\'existe pas', async () => {
+      // Arrange
+      prisma.team.findUnique.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.getTeamPlayersStatistics(teamId, userId)).rejects.toThrow(NotFoundException);
+    });
+
+    it('devrait lancer ForbiddenException si non autorisé', async () => {
+      // Arrange
+      prisma.team.findUnique.mockResolvedValue({ id: teamId, club_id: clubId });
+      prisma.clubUser.findFirst.mockResolvedValue({ role: club_role.RESPONSABLE });
+      prisma.teamUser.findFirst.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.getTeamPlayersStatistics(teamId, userId)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('devrait permettre l\'accès à un ASSISTANT_COACH', async () => {
+      // Arrange
+      prisma.team.findUnique.mockResolvedValue({ id: teamId, club_id: clubId });
+      prisma.clubUser.findFirst.mockResolvedValue(null);
+      prisma.teamUser.findFirst.mockResolvedValue({ role: team_role.ASSISTANT_COACH });
+      prisma.player.findMany.mockResolvedValue([]);
+
+      // Act
+      const result = await service.getTeamPlayersStatistics(teamId, userId);
+
+      // Assert
+      expect(result).toEqual([]);
     });
   });
 });

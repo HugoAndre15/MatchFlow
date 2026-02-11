@@ -910,4 +910,114 @@ export class MatchesService {
 
     return { message: 'Événement supprimé' };
   }
+
+  // ==================== STATISTIQUES DU MATCH ====================
+
+  /**
+   * Récupère les statistiques détaillées d'un match
+   * Autorisé: COACH, ASSISTANT_COACH de la team OU PRESIDENT du club
+   */
+  async getMatchStatistics(matchId: string, userId: string) {
+    const match = await this.prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        team: true,
+        matchEvents: {
+          include: {
+            player: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                jersey_number: true,
+                position: true,
+              },
+            },
+          },
+        },
+        matchPlayers: true,
+      },
+    });
+
+    if (!match) {
+      throw new NotFoundException('Match non trouvé');
+    }
+
+    // Seul COACH, ASSISTANT_COACH ou PRESIDENT peuvent voir les stats
+    const canManage = await this.canManageMatches(match.team_id, userId);
+    if (!canManage) {
+      throw new ForbiddenException(
+        'Seuls le coach, l\'assistant ou le président du club peuvent consulter les statistiques',
+      );
+    }
+
+    const events = match.matchEvents;
+
+    // Compter les événements par type
+    const eventsByType: Record<string, number> = {};
+    for (const event of events) {
+      eventsByType[event.event_type] = (eventsByType[event.event_type] || 0) + 1;
+    }
+
+    // Top buteur du match
+    const goalsByPlayer: Record<string, { playerId: string; playerName: string; jerseyNumber: number | null; goals: number }> = {};
+    for (const event of events.filter(e => e.event_type === match_event_type.GOAL)) {
+      const key = event.player_id;
+      if (!goalsByPlayer[key]) {
+        goalsByPlayer[key] = {
+          playerId: event.player_id,
+          playerName: `${event.player.first_name} ${event.player.last_name}`,
+          jerseyNumber: event.player.jersey_number,
+          goals: 0,
+        };
+      }
+      goalsByPlayer[key].goals++;
+    }
+    const topScorer = Object.values(goalsByPlayer).sort((a, b) => b.goals - a.goals)[0] || null;
+
+    // Top passeur du match
+    const assistsByPlayer: Record<string, { playerId: string; playerName: string; jerseyNumber: number | null; assists: number }> = {};
+    for (const event of events.filter(e => e.event_type === match_event_type.ASSIST)) {
+      const key = event.player_id;
+      if (!assistsByPlayer[key]) {
+        assistsByPlayer[key] = {
+          playerId: event.player_id,
+          playerName: `${event.player.first_name} ${event.player.last_name}`,
+          jerseyNumber: event.player.jersey_number,
+          assists: 0,
+        };
+      }
+      assistsByPlayer[key].assists++;
+    }
+    const topAssister = Object.values(assistsByPlayer).sort((a, b) => b.assists - a.assists)[0] || null;
+
+    // Chronologie des événements par minute
+    const timeline = events
+      .map(e => ({
+        minute: e.minute,
+        eventType: e.event_type,
+        playerName: `${e.player.first_name} ${e.player.last_name}`,
+        jerseyNumber: e.player.jersey_number,
+      }))
+      .sort((a, b) => a.minute - b.minute);
+
+    return {
+      matchId: match.id,
+      opponent: match.opponent,
+      matchDate: match.match_date,
+      location: match.location,
+      status: match.status,
+      totalPlayers: match.matchPlayers.length,
+      totalGoals: eventsByType[match_event_type.GOAL] || 0,
+      totalAssists: eventsByType[match_event_type.ASSIST] || 0,
+      totalYellowCards: eventsByType[match_event_type.YELLOW_CARD] || 0,
+      totalRedCards: eventsByType[match_event_type.RED_CARD] || 0,
+      totalRecoveries: eventsByType[match_event_type.RECOVERY] || 0,
+      totalBallLosses: eventsByType[match_event_type.BALL_LOSS] || 0,
+      topScorer,
+      topAssister,
+      eventsByType,
+      timeline,
+    };
+  }
 }

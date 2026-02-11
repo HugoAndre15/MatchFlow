@@ -30,6 +30,7 @@ describe('MatchesController', () => {
     getMatchEvents: jest.fn(),
     updateMatchEvent: jest.fn(),
     removeMatchEvent: jest.fn(),
+    getMatchStatistics: jest.fn(),
   };
 
   const mockUser = {
@@ -367,5 +368,31 @@ describe('MatchesController', () => {
     expect(service.removeMatchEvent).toHaveBeenCalledWith(matchId, eventId, mockUser.id);
     expect(service.removeMatchEvent).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ message: 'Event removed' });
+  });
+
+  // ==================== GET MATCH STATISTICS ====================
+
+  it('should call matchesService.getMatchStatistics with correct parameters', async () => {
+    // Arrange
+    const matchId = 'match-1';
+    const expectedResult = {
+      matchId: 'match-1',
+      opponent: 'FC Rival',
+      totalGoals: 3,
+      totalAssists: 2,
+      totalYellowCards: 1,
+      totalRedCards: 0,
+      topScorer: { playerId: 'player-1', playerName: 'John Doe', jerseyNumber: 9, goals: 2 },
+      topAssister: { playerId: 'player-2', playerName: 'Jane Smith', jerseyNumber: 10, assists: 2 },
+    };
+    mockMatchesService.getMatchStatistics.mockResolvedValue(expectedResult);
+
+    // Act
+    const result = await controller.getMatchStatistics(matchId, mockUser);
+
+    // Assert
+    expect(service.getMatchStatistics).toHaveBeenCalledWith(matchId, mockUser.id);
+    expect(service.getMatchStatistics).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expectedResult);
   });
 });

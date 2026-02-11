@@ -1096,4 +1096,132 @@ describe('MatchesService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
   });
+
+  // ==================== GET MATCH STATISTICS ====================
+
+  describe('getMatchStatistics', () => {
+    const mockMatchWithEvents = {
+      id: mockMatchId,
+      team_id: mockTeamId,
+      opponent: 'FC Rival',
+      match_date: new Date('2025-03-15'),
+      location: match_location.HOME,
+      status: match_status.FINISHED,
+      team: { id: mockTeamId, club_id: mockClubId },
+      matchPlayers: [
+        { id: 'mp-1', player_id: 'player-1' },
+        { id: 'mp-2', player_id: 'player-2' },
+      ],
+      matchEvents: [
+        {
+          id: 'evt-1',
+          player_id: 'player-1',
+          event_type: match_event_type.GOAL,
+          minute: 15,
+          player: { id: 'player-1', first_name: 'John', last_name: 'Doe', jersey_number: 9, position: 'FORWARD' },
+        },
+        {
+          id: 'evt-2',
+          player_id: 'player-1',
+          event_type: match_event_type.GOAL,
+          minute: 55,
+          player: { id: 'player-1', first_name: 'John', last_name: 'Doe', jersey_number: 9, position: 'FORWARD' },
+        },
+        {
+          id: 'evt-3',
+          player_id: 'player-2',
+          event_type: match_event_type.ASSIST,
+          minute: 15,
+          player: { id: 'player-2', first_name: 'Jane', last_name: 'Smith', jersey_number: 10, position: 'MIDFIELDER' },
+        },
+        {
+          id: 'evt-4',
+          player_id: 'player-2',
+          event_type: match_event_type.YELLOW_CARD,
+          minute: 70,
+          player: { id: 'player-2', first_name: 'Jane', last_name: 'Smith', jersey_number: 10, position: 'MIDFIELDER' },
+        },
+      ],
+    };
+
+    it('should return match statistics for a COACH', async () => {
+      prisma.match.findUnique.mockResolvedValue(mockMatchWithEvents);
+      mockCoachPermissions();
+
+      const result = await service.getMatchStatistics(mockMatchId, mockUserId);
+
+      expect(result.matchId).toBe(mockMatchId);
+      expect(result.opponent).toBe('FC Rival');
+      expect(result.totalGoals).toBe(2);
+      expect(result.totalAssists).toBe(1);
+      expect(result.totalYellowCards).toBe(1);
+      expect(result.totalRedCards).toBe(0);
+      expect(result.totalRecoveries).toBe(0);
+      expect(result.totalBallLosses).toBe(0);
+      expect(result.totalPlayers).toBe(2);
+      expect(result.topScorer).toEqual({
+        playerId: 'player-1',
+        playerName: 'John Doe',
+        jerseyNumber: 9,
+        goals: 2,
+      });
+      expect(result.topAssister).toEqual({
+        playerId: 'player-2',
+        playerName: 'Jane Smith',
+        jerseyNumber: 10,
+        assists: 1,
+      });
+      expect(result.timeline).toHaveLength(4);
+      expect(result.timeline[0].minute).toBe(15);
+      expect(result.timeline[3].minute).toBe(70);
+    });
+
+    it('should return statistics for a PRESIDENT', async () => {
+      prisma.match.findUnique.mockResolvedValue(mockMatchWithEvents);
+      mockPresidentPermissions();
+
+      const result = await service.getMatchStatistics(mockMatchId, mockUserId);
+
+      expect(result.matchId).toBe(mockMatchId);
+      expect(result.totalGoals).toBe(2);
+    });
+
+    it('should return stats with null topScorer/topAssister when no events', async () => {
+      const emptyMatch = {
+        ...mockMatchWithEvents,
+        matchEvents: [],
+        matchPlayers: [],
+      };
+      prisma.match.findUnique.mockResolvedValue(emptyMatch);
+      mockCoachPermissions();
+
+      const result = await service.getMatchStatistics(mockMatchId, mockUserId);
+
+      expect(result.totalGoals).toBe(0);
+      expect(result.totalAssists).toBe(0);
+      expect(result.topScorer).toBeNull();
+      expect(result.topAssister).toBeNull();
+      expect(result.timeline).toEqual([]);
+      expect(result.totalPlayers).toBe(0);
+    });
+
+    it('should throw NotFoundException if match does not exist', async () => {
+      prisma.match.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getMatchStatistics(mockMatchId, mockUserId),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if user is not COACH/ASSISTANT/PRESIDENT', async () => {
+      prisma.match.findUnique.mockResolvedValue(mockMatchWithEvents);
+      prisma.team.findUnique.mockResolvedValue({ id: mockTeamId, club_id: mockClubId });
+      prisma.clubUser.findFirst.mockResolvedValue(null);
+      prisma.teamUser.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getMatchStatistics(mockMatchId, mockUserId),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
 });

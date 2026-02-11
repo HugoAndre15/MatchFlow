@@ -165,6 +165,24 @@ export class MatchesController {
     return this.matchesService.removeMatchEvent(id, eventId, user.id);
   }
 
+  // ==================== STATISTIQUES ====================
+
+  @Get(':id/stats')
+  @ApiOperation({ 
+    summary: 'Statistiques d\'un match',
+    description: 'Buts, passes, cartons, récupérations, pertes de balle, top buteur, top passeur, chronologie. Accessible au COACH, ASSISTANT_COACH ou PRESIDENT uniquement.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID du match' })
+  @ApiResponse({ status: 200, description: 'Statistiques du match retournées' })
+  @ApiResponse({ status: 403, description: 'Non autorisé - Réservé au staff technique et au président' })
+  @ApiResponse({ status: 404, description: 'Match non trouvé' })
+  getMatchStatistics(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.matchesService.getMatchStatistics(id, user.id);
+  }
+
   @Patch(':id/status')
   @ApiOperation({ summary: 'Changer le statut du match', description: 'UPCOMING → LIVE → FINISHED (pas de retour)' })
   @ApiParam({ name: 'id', description: 'UUID du match' })

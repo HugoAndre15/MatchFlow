@@ -23,6 +23,8 @@ describe('TeamsController', () => {
     removeMember: jest.fn(),
     updateMemberRole: jest.fn(),
     leaveTeam: jest.fn(),
+    getTeamStatistics: jest.fn(),
+    getTeamPlayersStatistics: jest.fn(),
   };
 
   const mockUser = {
@@ -228,6 +230,50 @@ describe('TeamsController', () => {
     );
     expect(service.updateMemberRole).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ message: 'Role updated' });
+  });
+
+  // ==================== GET TEAM STATISTICS ====================
+
+  it('should call teamsService.getTeamStatistics with correct parameters', async () => {
+    // Arrange
+    const teamId = 'team-1';
+    const expectedResult = {
+      teamId: 'team-1',
+      teamName: 'Test Team',
+      totalMatches: 5,
+      totalGoals: 10,
+      averageGoalsPerMatch: 2.0,
+      topScorer: { playerId: 'player-1', playerName: 'John Doe', jerseyNumber: 9, goals: 5 },
+    };
+    mockTeamsService.getTeamStatistics.mockResolvedValue(expectedResult);
+
+    // Act
+    const result = await controller.getTeamStatistics(teamId, mockUser);
+
+    // Assert
+    expect(service.getTeamStatistics).toHaveBeenCalledWith(teamId, mockUser.id);
+    expect(service.getTeamStatistics).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expectedResult);
+  });
+
+  // ==================== GET TEAM PLAYERS STATISTICS ====================
+
+  it('should call teamsService.getTeamPlayersStatistics with correct parameters', async () => {
+    // Arrange
+    const teamId = 'team-1';
+    const expectedResult = [
+      { playerId: 'player-1', playerName: 'John Doe', goals: 5, assists: 3 },
+      { playerId: 'player-2', playerName: 'Jane Smith', goals: 3, assists: 4 },
+    ];
+    mockTeamsService.getTeamPlayersStatistics.mockResolvedValue(expectedResult);
+
+    // Act
+    const result = await controller.getTeamPlayersStatistics(teamId, mockUser);
+
+    // Assert
+    expect(service.getTeamPlayersStatistics).toHaveBeenCalledWith(teamId, mockUser.id);
+    expect(service.getTeamPlayersStatistics).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expectedResult);
   });
 
   // ==================== LEAVE TEAM ====================
