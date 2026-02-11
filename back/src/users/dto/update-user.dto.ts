@@ -1,7 +1,7 @@
-import { PartialType, OmitType } from '@nestjs/mapped-types';
+import { PartialType, OmitType } from '@nestjs/swagger';
 import { CreateUserDto } from './create-user.dto';
 
-// Option 2 (recommandé): Séparer password dans un DTO dédié
+// Hérite de CreateUserDto sans le password, tous les champs optionnels
 export class UpdateUserDto extends PartialType(
   OmitType(CreateUserDto, ['password'] as const)
 ) {}

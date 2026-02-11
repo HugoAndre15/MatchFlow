@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePlayerDto } from './dto/create-player.dto';
 import { UpdatePlayerDto } from './dto/update-player.dto';
+import { PaginationQueryDto, PaginatedResult } from '../common/dto/pagination-query.dto';
 import { club_role, team_role } from '@prisma/client';
 
 @Injectable()
@@ -99,31 +100,117 @@ export class PlayersService {
   }
 
   /**
-   * Lister tous les joueurs d'une équipe
+   * Lister les joueurs avec pagination, filtres, recherche et tri
+   * - Si teamId fourni : joueurs de cette équipe (vérifie permissions)
+   * - Si pas de teamId : joueurs de toutes les équipes auxquelles l'utilisateur a accès
    */
-  async findAll(teamId: string, userId: string) {
-    // Vérifier que la team existe
-    const team = await this.prisma.team.findUnique({
-      where: { id: teamId },
-    });
+  async findAll(
+    teamId: string | undefined,
+    userId: string,
+    paginationQuery: PaginationQueryDto = {},
+    status?: string,
+    position?: string,
+  ): Promise<PaginatedResult<any>> {
+    const { page = 1, limit = 20, sortBy, order = 'asc', search } = paginationQuery;
 
-    if (!team) {
-      throw new NotFoundException('Équipe non trouvée');
+    // Construire le WHERE dynamique
+    const where: any = {};
+
+    if (teamId) {
+      // Vérifier que la team existe
+      const team = await this.prisma.team.findUnique({
+        where: { id: teamId },
+      });
+
+      if (!team) {
+        throw new NotFoundException('Équipe non trouvée');
+      }
+
+      // Vérifier les permissions
+      const canManage = await this.canManagePlayers(teamId, userId);
+      if (!canManage) {
+        throw new ForbiddenException('Vous n\'avez pas accès aux joueurs de cette équipe');
+      }
+
+      where.team_id = teamId;
+    } else {
+      // Pas de teamId : récupérer toutes les teams où l'utilisateur a accès
+      const userTeams = await this.prisma.teamUser.findMany({
+        where: { user_id: userId },
+        select: { team_id: true },
+      });
+
+      // Aussi récupérer les teams des clubs dont l'utilisateur est président
+      const presidentClubs = await this.prisma.clubUser.findMany({
+        where: {
+          user_id: userId,
+          role: club_role.PRESIDENT,
+        },
+        select: { club_id: true },
+      });
+
+      let accessibleTeamIds = userTeams.map(tu => tu.team_id);
+
+      if (presidentClubs.length > 0) {
+        const clubTeams = await this.prisma.team.findMany({
+          where: {
+            club_id: { in: presidentClubs.map(pc => pc.club_id) },
+          },
+          select: { id: true },
+        });
+        const clubTeamIds = clubTeams.map(t => t.id);
+        accessibleTeamIds = [...new Set([...accessibleTeamIds, ...clubTeamIds])];
+      }
+
+      where.team_id = { in: accessibleTeamIds };
     }
 
-    // Vérifier les permissions
-    const canManage = await this.canManagePlayers(teamId, userId);
-    if (!canManage) {
-      throw new ForbiddenException('Vous n\'avez pas accès aux joueurs de cette équipe');
+    if (status) {
+      where.status = status;
     }
 
-    return this.prisma.player.findMany({
-      where: { team_id: teamId },
-      orderBy: [
-        { jersey_number: 'asc' },
-        { last_name: 'asc' },
-      ],
+    if (position) {
+      where.position = position;
+    }
+
+    if (search) {
+      where.OR = [
+        { first_name: { contains: search, mode: 'insensitive' } },
+        { last_name: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Construire le ORDER BY
+    const allowedSortFields = ['first_name', 'last_name', 'jersey_number', 'position', 'status', 'created_at'];
+    const orderBy = sortBy && allowedSortFields.includes(sortBy)
+      ? { [sortBy]: order }
+      : [{ jersey_number: 'asc' as const }, { last_name: 'asc' as const }];
+
+    // Compter le total
+    const total = await this.prisma.player.count({ where });
+
+    // Récupérer les données paginées
+    const data = await this.prisma.player.findMany({
+      where,
+      orderBy,
+      skip: (page - 1) * limit,
+      take: limit,
+      include: {
+        team: {
+          select: { id: true, name: true, category: true },
+        },
+      },
     });
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**
@@ -220,5 +307,82 @@ export class PlayersService {
     return this.prisma.player.delete({
       where: { id },
     });
+  }
+  
+    // ==================== STATISTIQUES ====================
+
+  /**
+   * Récupérer les statistiques agrégées d'un joueur
+   */
+  async getPlayerStats(playerId: string, userId: string) {
+    // 1. Vérifier que le joueur existe
+    const player = await this.prisma.player.findUnique({
+      where: { id: playerId },
+    });
+
+    if (!player) {
+      throw new NotFoundException('Joueur non trouvé');
+    }
+
+    // 2. Vérifier les permissions
+    const canManage = await this.canManagePlayers(player.team_id, userId);
+    if (!canManage) {
+      throw new ForbiddenException('Vous n\'avez pas accès aux stats de ce joueur');
+    }
+
+    // 3. Récupérer les convocations (MatchPlayer)
+    const matchPlayers = await this.prisma.matchPlayer.findMany({
+      where: { player_id: playerId },
+    });
+
+    const totalMatches = matchPlayers.length;
+    const matchesAsStarter = matchPlayers.filter(mp => mp.status === 'STARTER').length;
+    const matchesAsSubstitute = matchPlayers.filter(mp => mp.status === 'SUBSTITUTE').length;
+
+    // 4. Récupérer tous les événements du joueur
+    const events = await this.prisma.matchEvent.findMany({
+      where: { player_id: playerId },
+    });
+
+    // 5. Compter par type d'événement
+    const goals = events.filter(e => e.event_type === 'GOAL').length;
+    const assists = events.filter(e => e.event_type === 'ASSIST').length;
+    const yellowCards = events.filter(e => e.event_type === 'YELLOW_CARD').length;
+    const redCards = events.filter(e => e.event_type === 'RED_CARD').length;
+    const recoveries = events.filter(e => e.event_type === 'RECOVERY').length;
+    const ballLosses = events.filter(e => e.event_type === 'BALL_LOSS').length;
+
+    // 6. Buts par zone
+    const goalEvents = events.filter(e => e.event_type === 'GOAL');
+    const goalsByZone = {
+      LEFT: goalEvents.filter(e => e.zone === 'LEFT').length,
+      RIGHT: goalEvents.filter(e => e.zone === 'RIGHT').length,
+      AXIS: goalEvents.filter(e => e.zone === 'AXIS').length,
+      BOX: goalEvents.filter(e => e.zone === 'BOX').length,
+      OUTSIDE: goalEvents.filter(e => e.zone === 'OUTSIDE').length,
+    };
+
+    // 7. Buts par partie du corps
+    const goalsByBodyPart = {
+      LEFT_FOOT: goalEvents.filter(e => e.body_part === 'LEFT_FOOT').length,
+      RIGHT_FOOT: goalEvents.filter(e => e.body_part === 'RIGHT_FOOT').length,
+      HEAD: goalEvents.filter(e => e.body_part === 'HEAD').length,
+    };
+
+    return {
+      player_id: player.id,
+      player_name: `${player.last_name} ${player.first_name}`,
+      total_matches: totalMatches,
+      matches_as_starter: matchesAsStarter,
+      matches_as_substitute: matchesAsSubstitute,
+      goals,
+      assists,
+      yellow_cards: yellowCards,
+      red_cards: redCards,
+      recoveries,
+      ball_losses: ballLosses,
+      goals_by_zone: goalsByZone,
+      goals_by_body_part: goalsByBodyPart,
+    };
   }
 }

@@ -18,6 +18,11 @@ lerna-debug.log*
 # Tests
 /coverage
 /.nyc_output
+test-output.txt
+test-result.txt
+
+# Local scripts
+run-test.ps1
 
 # IDEs and editors
 /.idea
