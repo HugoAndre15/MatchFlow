@@ -5,8 +5,10 @@ import InputForm from "../../components/form/inputForm";
 import CheckboxForm from "../../components/form/CheckboxForm";
 import SubmitButtonForm from "../../components/form/SubmitButtonForm";
 import { authService } from "@/services/authService";
+import { useRouter } from "next/router";
 
 export default function Register() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -25,7 +27,7 @@ export default function Register() {
         try {
             await authService.register(formData);
             // Redirection après succès
-            window.location.href = '/login';
+            router.push('/login');
         } catch (err: any) {
             setError(err.response?.data?.message || 'Erreur lors de l\'inscription');
         } finally {
