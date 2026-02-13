@@ -6,6 +6,16 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Configuration CORS pour permettre les requêtes depuis le frontend
+  app.enableCors({
+    origin: 'http://localhost:3000', // URL du frontend
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
+   app.setGlobalPrefix('api');
+
   app.useGlobalPipes(new ValidationPipe({
     transform: true,           // Active class-transformer (convertit les query params string → number)
     whitelist: true,           // Supprime les propriétés non décorées
@@ -14,6 +24,7 @@ async function bootstrap() {
       enableImplicitConversion: true, // Conversion automatique des types
     },
   }));
+
 
   // ==================== SWAGGER (DEV UNIQUEMENT) ====================
   if (process.env.NODE_ENV !== 'production') {
