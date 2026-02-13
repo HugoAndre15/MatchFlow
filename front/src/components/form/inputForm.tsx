@@ -6,9 +6,11 @@ interface InputFormProps {
     label: string;
     type: string;
     placeholder?: string;
+    value?: string;
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-export default function InputForm({ label, type, placeholder }: InputFormProps) {
+export default function InputForm({ label, type, placeholder, value, onChange }: InputFormProps) {
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === "password";
     const inputType = isPassword && showPassword ? "text" : type;
@@ -21,6 +23,8 @@ export default function InputForm({ label, type, placeholder }: InputFormProps) 
                     id={label}
                     type={inputType}
                     placeholder={placeholder ?? `Entrez votre ${label}`}
+                    value={value}
+                    onChange={onChange}
                     className="
                         border-1 border-gray-700 w-full py-2 px-3 rounded-lg
                         outline-none transition-all duration-200
