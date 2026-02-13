@@ -17,6 +17,7 @@ If you're familiar with Railway, here's the quick version:
   DATABASE_URL=${{Postgres.DATABASE_URL}}
   JWT_SECRET=<generate-a-secure-random-32-char-string>
   JWT_EXPIRES_IN=7d
+  FRONTEND_URL=${{frontend.PUBLIC_URL}}
   ```
 - Generate public domain for API access
 

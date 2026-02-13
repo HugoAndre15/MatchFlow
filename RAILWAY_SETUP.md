@@ -25,6 +25,36 @@ CoachFlow consists of:
 
 Railway will host all three services and automatically handle networking between them.
 
+### Architecture Diagram
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Railway Project                       │
+│                                                           │
+│  ┌──────────────┐      ┌──────────────┐                 │
+│  │  PostgreSQL  │◄─────┤   Backend    │                 │
+│  │   Database   │      │   (NestJS)   │                 │
+│  └──────────────┘      │   Port 3001  │                 │
+│                        └──────▲───────┘                 │
+│                               │                          │
+│                               │ API Calls                │
+│                        ┌──────┴───────┐                 │
+│                        │   Frontend   │                 │
+│                        │   (Next.js)  │                 │
+│                        │   Port 3000  │                 │
+│                        └──────────────┘                 │
+│                               │                          │
+└───────────────────────────────┼──────────────────────────┘
+                                │
+                                │ HTTPS
+                                ▼
+                          Users' Browser
+```
+
+### Deployment Order
+1. **PostgreSQL** → Database service (auto-provisioned)
+2. **Backend** → API service (connects to database)
+3. **Frontend** → Web interface (connects to backend)
+
 ---
 
 ## Prerequisites
@@ -88,6 +118,9 @@ Railway will host all three services and automatically handle networking between
    
    # Port (Railway sets this automatically, but you can specify)
    PORT=3001
+   
+   # Frontend URL (for CORS - will be set after frontend is deployed)
+   FRONTEND_URL=${{frontend.PUBLIC_URL}}
    ```
 
    **⚠️ IMPORTANT**: Replace `JWT_SECRET` with a strong random string. You can generate one using:
@@ -95,6 +128,8 @@ Railway will host all three services and automatically handle networking between
    openssl rand -base64 32
    ```
    Or use an online generator like [https://randomkeygen.com/](https://randomkeygen.com/)
+   
+   **Note**: The `FRONTEND_URL` variable should be added after you deploy the frontend and get its public URL. You can initially set it to `*` (allow all origins) and update it later for security.
 
 4. **Enable Public Domain** (Optional but recommended):
    - Go to Settings → Networking
@@ -147,6 +182,7 @@ Railway will host all three services and automatically handle networking between
 | `JWT_SECRET` | Your secure random string | Secret key for JWT tokens (min 32 chars) |
 | `JWT_EXPIRES_IN` | `7d` | JWT token expiration time |
 | `PORT` | `3001` | Server port (optional, Railway auto-assigns) |
+| `FRONTEND_URL` | `${{frontend.PUBLIC_URL}}` or specific URL | Frontend URL for CORS (optional, defaults to `*`) |
 
 ### Frontend Variables Summary
 
