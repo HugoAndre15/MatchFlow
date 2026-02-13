@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+const poppins = Poppins({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-poppins",
 });
 
 export const metadata: Metadata = {
-  title: "MatchFlow",
+  title: "CoachFlow",
   description: "Application basique Next.js + Nest.js",
 };
 
@@ -19,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${poppins.variable} antialiased`} style={{ fontFamily: "var(--font-poppins), sans-serif" }}>
         {children}
       </body>
     </html>
