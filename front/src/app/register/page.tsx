@@ -5,7 +5,7 @@ import InputForm from "../../components/form/inputForm";
 import CheckboxForm from "../../components/form/CheckboxForm";
 import SubmitButtonForm from "../../components/form/SubmitButtonForm";
 import { authService } from "@/services/authService";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 
 export default function Register() {
   const router = useRouter();
