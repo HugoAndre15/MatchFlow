@@ -10,7 +10,8 @@ import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
 import { AddTeamMemberDto } from './dto/add-team-member.dto';
 import { UpdateTeamMemberRoleDto } from './dto/update-team-member-role.dto';
-import { club_role, team_role } from '@prisma/client';
+import { PaginationQueryDto, PaginatedResult } from '../common/dto/pagination-query.dto';
+import { club_role, team_role, match_event_type } from '@prisma/client';
 
 @Injectable()
 export class TeamsService {
@@ -141,18 +142,40 @@ export class TeamsService {
 
   /**
    * Lister toutes les teams d'un club
+   * Avec pagination, recherche par nom et tri
    * Accessible à tous les membres du club
    * Inclut le rôle de l'utilisateur dans chaque team (si membre)
    */
-  async findAll(clubId: string, userId: string) {
+  async findAll(clubId: string, userId: string, paginationQuery: PaginationQueryDto = {}): Promise<PaginatedResult<any>> {
+    const { page = 1, limit = 20, sortBy, order = 'asc', search } = paginationQuery;
+
     // Vérifier que l'utilisateur est membre du club
     const hasAccess = await this.canAccessTeam(clubId, userId);
     if (!hasAccess) {
       throw new ForbiddenException('Vous devez être membre du club pour voir ses équipes');
     }
 
+    // Construire le WHERE dynamique
+    const where: any = { club_id: clubId };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { category: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Construire le ORDER BY
+    const allowedSortFields = ['name', 'category', 'created_at'];
+    const orderBy = sortBy && allowedSortFields.includes(sortBy)
+      ? { [sortBy]: order }
+      : { name: 'asc' as const };
+
+    // Compter le total
+    const total = await this.prisma.team.count({ where });
+
     const teams = await this.prisma.team.findMany({
-      where: { club_id: clubId },
+      where,
       include: {
         _count: {
           select: {
@@ -161,6 +184,9 @@ export class TeamsService {
           },
         },
       },
+      orderBy,
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
     // Pour chaque team, récupérer le rôle de l'utilisateur
@@ -174,7 +200,15 @@ export class TeamsService {
       })
     );
 
-    return teamsWithRole;
+    return {
+      data: teamsWithRole,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**
@@ -517,5 +551,198 @@ export class TeamsService {
     });
 
     return { message: 'Vous avez quitté l\'équipe avec succès' };
+  }
+
+  // ==================== STATISTIQUES DE L'ÉQUIPE ====================
+
+  /**
+   * Vérifie si l'utilisateur est COACH, ASSISTANT_COACH de la team OU PRESIDENT du club
+   */
+  private async canViewStats(teamId: string, clubId: string, userId: string): Promise<boolean> {
+    const isPresident = await this.isClubPresident(clubId, userId);
+    if (isPresident) return true;
+
+    const teamRole = await this.getUserRoleInTeam(teamId, userId);
+    return teamRole === team_role.COACH || teamRole === team_role.ASSISTANT_COACH;
+  }
+
+  /**
+   * Récupère les statistiques globales d'une équipe
+   * Autorisé: COACH, ASSISTANT_COACH de la team OU PRESIDENT du club
+   */
+  async getTeamStatistics(teamId: string, userId: string) {
+    const team = await this.prisma.team.findUnique({
+      where: { id: teamId },
+      include: {
+        matches: {
+          include: {
+            matchEvents: {
+              include: {
+                player: {
+                  select: {
+                    id: true,
+                    first_name: true,
+                    last_name: true,
+                    jersey_number: true,
+                    position: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { match_date: 'desc' },
+        },
+      },
+    });
+
+    if (!team) {
+      throw new NotFoundException('Équipe non trouvée');
+    }
+
+    const canView = await this.canViewStats(teamId, team.club_id, userId);
+    if (!canView) {
+      throw new ForbiddenException(
+        'Seuls le coach, l\'assistant ou le président du club peuvent consulter les statistiques',
+      );
+    }
+
+    const matches = team.matches;
+    const totalMatches = matches.length;
+    const upcomingMatches = matches.filter(m => m.status === 'UPCOMING').length;
+    const liveMatches = matches.filter(m => m.status === 'LIVE').length;
+    const finishedMatches = matches.filter(m => m.status === 'FINISHED').length;
+
+    // Agréger tous les événements
+    const allEvents = matches.flatMap(m => m.matchEvents);
+
+    const eventsByType: Record<string, number> = {};
+    for (const event of allEvents) {
+      eventsByType[event.event_type] = (eventsByType[event.event_type] || 0) + 1;
+    }
+
+    const totalGoals = eventsByType[match_event_type.GOAL] || 0;
+    const totalAssists = eventsByType[match_event_type.ASSIST] || 0;
+    const totalYellowCards = eventsByType[match_event_type.YELLOW_CARD] || 0;
+    const totalRedCards = eventsByType[match_event_type.RED_CARD] || 0;
+    const totalRecoveries = eventsByType[match_event_type.RECOVERY] || 0;
+    const totalBallLosses = eventsByType[match_event_type.BALL_LOSS] || 0;
+
+    const averageGoalsPerMatch = finishedMatches > 0
+      ? parseFloat((totalGoals / finishedMatches).toFixed(2))
+      : 0;
+
+    // Top buteur global
+    const goalsByPlayer: Record<string, { playerId: string; playerName: string; jerseyNumber: number | null; goals: number }> = {};
+    for (const event of allEvents.filter(e => e.event_type === match_event_type.GOAL)) {
+      const key = event.player_id;
+      if (!goalsByPlayer[key]) {
+        goalsByPlayer[key] = {
+          playerId: event.player_id,
+          playerName: `${event.player.first_name} ${event.player.last_name}`,
+          jerseyNumber: event.player.jersey_number,
+          goals: 0,
+        };
+      }
+      goalsByPlayer[key].goals++;
+    }
+    const topScorer = Object.values(goalsByPlayer).sort((a, b) => b.goals - a.goals)[0] || null;
+
+    // Top passeur global
+    const assistsByPlayer: Record<string, { playerId: string; playerName: string; jerseyNumber: number | null; assists: number }> = {};
+    for (const event of allEvents.filter(e => e.event_type === match_event_type.ASSIST)) {
+      const key = event.player_id;
+      if (!assistsByPlayer[key]) {
+        assistsByPlayer[key] = {
+          playerId: event.player_id,
+          playerName: `${event.player.first_name} ${event.player.last_name}`,
+          jerseyNumber: event.player.jersey_number,
+          assists: 0,
+        };
+      }
+      assistsByPlayer[key].assists++;
+    }
+    const topAssister = Object.values(assistsByPlayer).sort((a, b) => b.assists - a.assists)[0] || null;
+
+    // Historique des matchs avec buts
+    const matchesHistory = matches.map(match => ({
+      matchId: match.id,
+      opponent: match.opponent,
+      date: match.match_date,
+      location: match.location,
+      status: match.status,
+      goals: match.matchEvents.filter(e => e.event_type === match_event_type.GOAL).length,
+    }));
+
+    return {
+      teamId: team.id,
+      teamName: team.name,
+      category: team.category,
+      totalMatches,
+      upcomingMatches,
+      liveMatches,
+      finishedMatches,
+      totalGoals,
+      totalAssists,
+      totalYellowCards,
+      totalRedCards,
+      totalRecoveries,
+      totalBallLosses,
+      averageGoalsPerMatch,
+      topScorer,
+      topAssister,
+      matchesHistory,
+    };
+  }
+
+  /**
+   * Récupère les statistiques individuelles de tous les joueurs d'une équipe
+   * Autorisé: COACH, ASSISTANT_COACH de la team OU PRESIDENT du club
+   */
+  async getTeamPlayersStatistics(teamId: string, userId: string) {
+    const team = await this.prisma.team.findUnique({
+      where: { id: teamId },
+    });
+
+    if (!team) {
+      throw new NotFoundException('Équipe non trouvée');
+    }
+
+    const canView = await this.canViewStats(teamId, team.club_id, userId);
+    if (!canView) {
+      throw new ForbiddenException(
+        'Seuls le coach, l\'assistant ou le président du club peuvent consulter les statistiques',
+      );
+    }
+
+    const players = await this.prisma.player.findMany({
+      where: { team_id: teamId },
+      include: {
+        matchEvents: true,
+        matchPlayers: true,
+      },
+    });
+
+    return players
+      .map(player => {
+        const eventsByType: Record<string, number> = {};
+        for (const event of player.matchEvents) {
+          eventsByType[event.event_type] = (eventsByType[event.event_type] || 0) + 1;
+        }
+
+        return {
+          playerId: player.id,
+          playerName: `${player.first_name} ${player.last_name}`,
+          jerseyNumber: player.jersey_number,
+          position: player.position || 'N/A',
+          matchesPlayed: player.matchPlayers.length,
+          goals: eventsByType[match_event_type.GOAL] || 0,
+          assists: eventsByType[match_event_type.ASSIST] || 0,
+          yellowCards: eventsByType[match_event_type.YELLOW_CARD] || 0,
+          redCards: eventsByType[match_event_type.RED_CARD] || 0,
+          recoveries: eventsByType[match_event_type.RECOVERY] || 0,
+          ballLosses: eventsByType[match_event_type.BALL_LOSS] || 0,
+        };
+      })
+      .sort((a, b) => b.goals - a.goals);
   }
 }
