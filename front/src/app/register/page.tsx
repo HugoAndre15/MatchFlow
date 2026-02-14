@@ -55,8 +55,8 @@ export default function Register() {
 
   return (
     <div className="h-screen flex items-center bg-gradient-to-br from-white-100 to-white-200">
-        <div className="text-left flex flex-col gap-16 w-full md:w-1/2 h-full py-8 px-8 md:px-0 items-center md:items-start justify-center">
-            <form onSubmit={handleSubmit} className="w-full max-w-md flex flex-col items-start justify-center gap-8 mx-auto md:mx-0">
+        <div className="text-left items-center md:items-start flex flex-col gap-16 w-full md:w-1/2 h-full py-8 px-8 md:px-2 items-center justify-center">
+            <form onSubmit={handleSubmit} className="min-w-1/2 flex flex-col items-start justify-center gap-8 mx-auto">
                 <div className="">
                     <h1 className="text-3xl font-medium text-gray-900">
                         Commencez dès maintenant
