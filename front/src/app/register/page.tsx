@@ -6,6 +6,8 @@ import CheckboxForm from "../../components/form/CheckboxForm";
 import SubmitButtonForm from "../../components/form/SubmitButtonForm";
 import { authService } from "@/services/authService";
 import { useRouter } from "next/navigation";
+import { registerSchema } from "@/utils/validationSchemas";
+import { z } from "zod";
 
 export default function Register() {
   const router = useRouter();
@@ -17,12 +19,31 @@ export default function Register() {
   });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setFieldErrors({});
         setLoading(true);
+
+        // Validation avec Zod
+        try {
+            registerSchema.parse(formData);
+        } catch (err) {
+            if (err instanceof z.ZodError) {
+                const errors: Record<string, string> = {};
+                err.issues.forEach((issue) => {
+                    if (issue.path[0]) {
+                        errors[issue.path[0] as string] = issue.message;
+                    }
+                });
+                setFieldErrors(errors);
+                setLoading(false);
+                return;
+            }
+        }
 
         try {
             await authService.register(formData);
@@ -47,31 +68,51 @@ export default function Register() {
                         Entrez vos informations pour créer votre compte
                     </h2>
                 </div>
-                {error && <p className="text-red-500 text-sm w-full">{error}</p>}
+                {error && (
+                    <div className="w-full bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2.5 animate-in slide-in-from-top-2 duration-300">
+                        <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            viewBox="0 0 20 20" 
+                            fill="currentColor" 
+                            className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"
+                        >
+                            <path 
+                                fillRule="evenodd" 
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" 
+                                clipRule="evenodd" 
+                            />
+                        </svg>
+                        <p className="text-red-700 text-sm font-medium leading-relaxed">{error}</p>
+                    </div>
+                )}
                 <div className="w-full flex flex-col items-start gap-4 pr-20">
                     <InputForm 
                         label="Prénom" 
                         type="text" 
                         value={formData.firstName}
                         onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                        error={fieldErrors.firstName}
                     />
                     <InputForm 
                         label="Nom" 
                         type="text" 
                         value={formData.lastName}
                         onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                        error={fieldErrors.lastName}
                     />
                     <InputForm 
                         label="Email" 
                         type="email" 
                         value={formData.email}
                         onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        error={fieldErrors.email}
                     />
                     <InputForm 
                         label="Mot de passe" 
                         type="password" 
                         value={formData.password}
                         onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        error={fieldErrors.password}
                     />
                     <CheckboxForm 
                         label="J'accepte les CGV et CGU" 

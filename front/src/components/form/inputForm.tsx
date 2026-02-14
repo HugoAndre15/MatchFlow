@@ -8,12 +8,17 @@ interface InputFormProps {
     placeholder?: string;
     value?: string;
     onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    error?: string;
 }
 
-export default function InputForm({ label, type, placeholder, value, onChange }: InputFormProps) {
+export default function InputForm({ label, type, placeholder, value, onChange, error }: InputFormProps) {
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === "password";
     const inputType = isPassword && showPassword ? "text" : type;
+
+    const inputClasses = error
+        ? "border border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-4 focus:ring-red-500/10 text-red-900"
+        : "border border-gray-300 bg-white hover:border-gray-400 focus:border-green-500 focus:ring-4 focus:ring-green-500/10";
 
     return (
         <div className="w-full flex flex-col gap-1 items-center text-left">
@@ -25,14 +30,7 @@ export default function InputForm({ label, type, placeholder, value, onChange }:
                     placeholder={placeholder ?? `Entrez votre ${label}`}
                     value={value}
                     onChange={onChange}
-                    className="
-                        border-1 border-gray-700 w-full py-2 px-3 rounded-lg
-                        outline-none transition-all duration-200
-                        placeholder:text-gray-400 placeholder:text-sm placeholder:font-medium
-                        focus:border-green-500 focus:ring-2 focus:ring-green-500/20
-                        hover:border-gray-500
-                        selection:bg-green-100 selection:text-green-900
-                    "
+                    className={`w-full py-2.5 px-3 rounded-lg outline-none transition-all duration-300 ease-in-out placeholder:text-gray-400 placeholder:text-sm placeholder:font-medium selection:bg-green-100 selection:text-green-900 ${inputClasses}`}
                 />
                 {isPassword && (
                     <button
@@ -53,6 +51,23 @@ export default function InputForm({ label, type, placeholder, value, onChange }:
                     </button>
                 )}
             </div>
+            {error && (
+                <div className="flex items-start gap-1.5 w-full animate-in slide-in-from-top-1 duration-300">
+                    <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 20 20" 
+                        fill="currentColor" 
+                        className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0"
+                    >
+                        <path 
+                            fillRule="evenodd" 
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" 
+                            clipRule="evenodd" 
+                        />
+                    </svg>
+                    <p className="text-red-600 text-xs font-medium leading-relaxed">{error}</p>
+                </div>
+            )}
         </div>
     );
 }
