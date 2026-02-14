@@ -14,9 +14,10 @@ COPY prisma/ ./prisma/
 
 RUN npx prisma generate
 
-COPY src/ ./src/
+COPY . .
 
-# Build NestJS application
+# Force rebuild - cache buster
+ARG CACHEBUST=1
 RUN npm run build && ls -la dist/
 
 COPY docker-entrypoint.sh /usr/local/bin/
