@@ -16,7 +16,8 @@ RUN npx prisma generate
 
 COPY src/ ./src/
 
-RUN npm run build
+# Build NestJS application
+RUN npm run build && ls -la dist/
 
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
