@@ -16,6 +16,11 @@ RUN npx prisma generate
 
 COPY src/ ./src/
 
+RUN npm run build
+
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 3001
 
-CMD ["sh", "-c", "while ! nc -z db 5432; do sleep 1; done && npx prisma migrate deploy && npm run start:dev"]
+ENTRYPOINT ["docker-entrypoint.sh"]
