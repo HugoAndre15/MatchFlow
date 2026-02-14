@@ -1,30 +1,11 @@
 'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { authService } from "@/services/authService";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Home() {
-  const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<{ first_name: string; last_name: string } | null>(null);
+  const { user, logout, isLoading } = useAuth();
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-    } else {
-      setIsAuthenticated(true);
-      setUser(authService.getUser());
-    }
-  }, [router]);
-
-  const handleLogout = () => {
-    authService.logout();
-    router.push("/login");
-  };
-
-  if (!isAuthenticated) return null;
+  if (isLoading) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -39,7 +20,7 @@ export default function Home() {
               </span>
             )}
           <button
-            onClick={handleLogout}
+            onClick={logout}
             className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
           >
             Déconnexion

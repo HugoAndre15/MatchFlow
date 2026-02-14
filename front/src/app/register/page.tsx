@@ -4,13 +4,12 @@ import { useState } from "react";
 import InputForm from "../../components/form/inputForm";
 import CheckboxForm from "../../components/form/CheckboxForm";
 import SubmitButtonForm from "../../components/form/SubmitButtonForm";
-import { authService } from "@/services/authService";
-import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { registerSchema } from "@/utils/validationSchemas";
 import { z } from "zod";
 
 export default function Register() {
-  const router = useRouter();
+  const { register } = useAuth();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -46,9 +45,7 @@ export default function Register() {
         }
 
         try {
-            await authService.register(formData);
-            // Redirection après succès
-            router.push('/login');
+            await register(formData);
         } catch (err: any) {
             setError(err.response?.data?.message || 'Erreur lors de l\'inscription');
         } finally {
@@ -58,8 +55,8 @@ export default function Register() {
 
   return (
     <div className="h-screen flex items-center bg-gradient-to-br from-white-100 to-white-200">
-        <div className="text-left items-start flex flex-col gap-16 w-1/2 h-full py-8 items-center justify-center">
-            <form onSubmit={handleSubmit} className="min-w-1/2 flex flex-col items-start justify-center gap-8 mx-auto">
+        <div className="text-left flex flex-col gap-16 w-full md:w-1/2 h-full py-8 px-8 md:px-0 items-center md:items-start justify-center">
+            <form onSubmit={handleSubmit} className="w-full max-w-md flex flex-col items-start justify-center gap-8 mx-auto md:mx-0">
                 <div className="">
                     <h1 className="text-3xl font-medium text-gray-900">
                         Commencez dès maintenant
@@ -85,7 +82,7 @@ export default function Register() {
                         <p className="text-red-700 text-sm font-medium leading-relaxed">{error}</p>
                     </div>
                 )}
-                <div className="w-full flex flex-col items-start gap-4 pr-20">
+                <div className="w-full flex flex-col items-start gap-4 md:pr-20">
                     <InputForm 
                         label="Prénom" 
                         type="text" 
@@ -135,7 +132,7 @@ export default function Register() {
                 </div>
             </form>
         </div>
-        <div className="w-1/2 h-full">
+        <div className="w-1/2 h-full hidden md:block">
             <img src="/assets/img/fond-stade-auth.jpg" alt="Description" className="rounded-l-[45px] object-cover object-right h-full w-full" />
         </div>
     </div>
